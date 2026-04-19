@@ -8,3 +8,10 @@ assets/*.mov
 .env.local
 .env.production
 .env.development
+
+# Build Artifacts
+build/
+dist/
+release_assets/
+*.spec
+*.zip

@@ -42,10 +42,28 @@ jobs:
 
     - name: Build Executable with PyInstaller
       run: |
-        pyinstaller --noconfirm --onedir --windowed --add-data "templates${{ matrix.separator }}templates" --add-data "static${{ matrix.separator }}static" --name "ReClip" app.py
+        pyinstaller --noconfirm --onefile --windowed --add-data "templates${{ matrix.separator }}templates" --add-data "static${{ matrix.separator }}static" --name "ReClip" app.py
+
+    - name: Create DMG for macOS
+      if: matrix.os == 'macos-latest'
+      run: |
+        npm install -g create-dmg
+        create-dmg dist/ReClip.app dist/ReClip-macos.dmg || true
+
+    - name: Prepare Action Artifacts
+      shell: bash
+      run: |
+        mkdir -p deploy_files
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          cp dist/ReClip.exe deploy_files/
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          cp dist/ReClip-macos.dmg deploy_files/
+        else
+          cp dist/ReClip deploy_files/
+        fi
 
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ReClip-${{ matrix.os }}
-        path: dist/ReClip
+        path: deploy_files/*

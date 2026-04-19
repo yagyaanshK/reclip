@@ -48,7 +48,13 @@
       padding: 60px 24px 80px;
     }
 
-    .brand { margin-bottom: 48px; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 48px;
+    }
+    .brand { margin-bottom: 0; }
     .brand h1 {
       font-family: 'Instrument Serif', serif;
       font-size: 4.2rem;
@@ -65,6 +71,73 @@
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }
+
+    .dropdown {
+      position: relative;
+      display: inline-block;
+      margin-top: 5px;
+    }
+    .dl-app-btn {
+      padding: 10px 16px;
+      border: 1.5px solid var(--card-border);
+      border-radius: 10px;
+      background: var(--card);
+      color: var(--fg);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dl-app-btn:hover { border-color: var(--muted); }
+    .dl-app-btn svg { width: 14px; height: 14px; transition: transform 0.2s; }
+    
+    .dropdown:hover .dl-app-btn { border-color: var(--accent); color: var(--accent); }
+    .dropdown:hover .dropdown-content {
+      opacity: 1; visibility: visible; transform: translateY(0);
+    }
+    .dropdown:hover .dl-app-btn svg {
+      transform: rotate(180deg);
+    }
+
+    .dropdown-content {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      background: var(--card);
+      border: 1.5px solid var(--card-border);
+      border-radius: 10px;
+      min-width: 160px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 100;
+      overflow: hidden;
+    }
+    .dropdown-content a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      color: var(--fg);
+      text-decoration: none;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      transition: background 0.2s;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .dropdown-content a:last-child { border-bottom: none; }
+    .dropdown-content a:hover { background: rgba(0,0,0,0.02); color: var(--accent); }
+    .dropdown-content svg { width: 14px; height: 14px; color: var(--muted); }
+    .dropdown-content a:hover svg { color: var(--accent); }
 
     textarea {
       width: 100%;
@@ -368,6 +441,10 @@
     @media (max-width: 500px) {
       .brand h1 { font-size: 3rem; }
       .page { padding: 40px 16px 60px; }
+      .header { flex-direction: column; gap: 24px; align-items: flex-start; }
+      .dropdown { width: 100%; margin-top: 0; }
+      .dl-app-btn { width: 100%; justify-content: center; }
+      .dropdown-content { width: 100%; }
       .card { flex-direction: column; gap: 10px; }
       .card-thumb {
         width: 100%;
@@ -382,9 +459,32 @@
 </head>
 <body>
   <div class="page">
-    <div class="brand">
-      <h1>Re<em>Clip</em></h1>
-      <p>Free media downloader</p>
+    <div class="header">
+      <div class="brand">
+        <h1>Re<em>Clip</em></h1>
+        <p>Free media downloader</p>
+      </div>
+
+      <div class="dropdown">
+        <button class="dl-app-btn">
+          Download App
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="dropdown-content">
+          <a href="https://github.com/yagyaanshK/reclip/releases/latest" target="_blank">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            Windows
+          </a>
+          <a href="https://github.com/yagyaanshK/reclip/releases/latest" target="_blank">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"></path><path d="M10 2c1 .5 2 2 2 5"></path></svg>
+            Mac System
+          </a>
+          <a href="https://github.com/yagyaanshK/reclip/releases/latest" target="_blank">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2A4 4 0 0 0 8 6v4H4v8h16v-8h-4V6a4 4 0 0 0-4-4z"></path><circle cx="9.5" cy="14.5" r="1.5"></circle><circle cx="14.5" cy="14.5" r="1.5"></circle><path d="M9 18h6"></path></svg>
+            Linux
+          </a>
+        </div>
+      </div>
     </div>
 
     <textarea id="urls" placeholder="Paste one or more URLs..." rows="2"></textarea>

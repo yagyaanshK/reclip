@@ -48,7 +48,8 @@ jobs:
       if: matrix.os == 'macos-latest'
       run: |
         npm install -g create-dmg
-        create-dmg dist/ReClip.app dist/ReClip-macos.dmg || true
+        create-dmg dist/ReClip.app dist || true
+        mv dist/ReClip*.dmg dist/ReClip-macos.dmg || true
 
     - name: Prepare Action Artifacts
       shell: bash

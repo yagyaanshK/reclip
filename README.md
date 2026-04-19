@@ -18,20 +18,30 @@ https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
 - Automatic URL deduplication
 - Clean, responsive UI — no frameworks, no build step
 - Single Python file backend (~150 lines)
+- Native Desktop Window (powered by PyWebView)
 
-## Quick Start
+### Build as a Native Desktop App (Recommended)
+You can compile ReClip into a standalone, native desktop executable (`.exe` or `.app`) containing its own server!
 
+**On Windows:**
+Double-click `build_windows.bat`. When finished, run `ReClip.exe` from the new `dist/ReClip` folder.
+
+**On Mac / Linux:**
+```bash
+./build_unix.sh
+```
+
+### Run Server Locally (Terminal)
 ```bash
 git clone https://github.com/averygan/reclip.git
 cd reclip
 ```
 
-**On Windows (One-Click Installer):**
-Double-click `start_windows.bat` to automatically set up your environment and launch the app. Make sure Python and FFmpeg are installed on your system.
+**On Windows (Script):**
+Double-click `start_windows.bat`.
 
 **On Mac / Linux:**
 ```bash
-brew install yt-dlp ffmpeg    # or apt install ffmpeg && pip install yt-dlp
 ./reclip.sh
 ```
 

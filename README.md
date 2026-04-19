@@ -18,26 +18,26 @@ https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
 - Automatic URL deduplication
 - Clean, responsive UI — no frameworks, no build step
 - Single Python file backend (~150 lines)
-- Native Desktop Window (powered by PyWebView)
+- Native Desktop Apps — zero-install standalone executables for Windows, macOS, and Linux.
 
-### Build as a Native Desktop App (Recommended)
-You can compile ReClip into a standalone, native desktop executable (`.exe` or `.app`) containing its own server!
+## 🚀 Download ReClip App
 
-**On Windows:**
-Double-click `build_windows.bat`. When finished, run `ReClip.exe` from the new `dist/ReClip` folder.
+You don't need to install Python or use the terminal. Download the pre-built standalone executable for your operating system:
 
-**On Mac / Linux:**
+- 🪟 **Windows:** [ReClip.exe](https://github.com/yagyaanshK/reclip/releases/latest/download/ReClip.exe)
+- 🍎 **macOS:** [ReClip-macos.dmg](https://github.com/yagyaanshK/reclip/releases/latest/download/ReClip-macos.dmg)
+- 🐧 **Linux:** [ReClip](https://github.com/yagyaanshK/reclip/releases/latest/download/ReClip)
+
+*Note: The native apps contain a bundled server and PyWebView browser. Simply open the app and it will launch right in its own native window!*
+
+## 🛠️ Run from Source (Terminal)
+
 ```bash
-./build_unix.sh
-```
-
-### Run Server Locally (Terminal)
-```bash
-git clone https://github.com/averygan/reclip.git
+git clone https://github.com/yagyaanshK/reclip.git
 cd reclip
 ```
 
-**On Windows (Script):**
+**On Windows:**
 Double-click `start_windows.bat`.
 
 **On Mac / Linux:**
@@ -46,6 +46,11 @@ Double-click `start_windows.bat`.
 ```
 
 Open **http://localhost:8899** in your browser.
+
+### Build Executables Locally
+To manually compile ReClip into a standalone executable:
+- **Windows:** Run `build_windows.bat` -> Output in `dist/`
+- **Mac / Linux:** Run `./build_unix.sh` -> Output in `dist/`
 
 Or with Docker:
 

@@ -10,3 +10,10 @@ assets/*.mov
 .env.development
 .hf_token
 DEPLOYMENT_OPTIONS.md
+
+# Build Artifacts
+build/
+dist/
+release_assets/
+*.spec
+*.zip

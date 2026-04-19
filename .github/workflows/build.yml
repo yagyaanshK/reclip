@@ -1,0 +1,51 @@
+name: Build Cross-Platform Desktop Apps
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            separator: ":"
+          - os: macos-latest
+            separator: ":"
+          - os: windows-latest
+            separator: ";"
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install Linux GUI Dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-gtk-3.0 gir1.2-webkit2-4.0
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Build Executable with PyInstaller
+      run: |
+        pyinstaller --noconfirm --onedir --windowed --add-data "templates${{ matrix.separator }}templates" --add-data "static${{ matrix.separator }}static" --name "ReClip" app.py
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ReClip-${{ matrix.os }}
+        path: dist/ReClip

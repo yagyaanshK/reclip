@@ -22,13 +22,20 @@ https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
 ## Quick Start
 
 ```bash
-brew install yt-dlp ffmpeg    # or apt install ffmpeg && pip install yt-dlp
 git clone https://github.com/averygan/reclip.git
 cd reclip
+```
+
+**On Windows (One-Click Installer):**
+Double-click `start_windows.bat` to automatically set up your environment and launch the app. Make sure Python and FFmpeg are installed on your system.
+
+**On Mac / Linux:**
+```bash
+brew install yt-dlp ffmpeg    # or apt install ffmpeg && pip install yt-dlp
 ./reclip.sh
 ```
 
-Open **http://localhost:8899**.
+Open **http://localhost:8899** in your browser.
 
 Or with Docker:
 

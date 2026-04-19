@@ -1,4 +1,11 @@
 <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
- <circle cx="64" cy="64" r="53.336" fill="#e85d2a"/>
- <path d="m53.008 49.051 26.996 14.949-26.996 14.949z" fill="#fff"/>
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;display=swap');
+      .r { font-family: 'Instrument Serif', Georgia, serif; font-size: 100px; fill: #3a3a38; font-style: normal; text-anchor: middle; }
+      .c { font-family: 'Instrument Serif', Georgia, serif; font-size: 100px; fill: #e85d2a; font-style: italic; text-anchor: middle; }
+    </style>
+  </defs>
+  <text x="38" y="100" class="r">R</text>
+  <text x="88" y="100" class="c">C</text>
 </svg>

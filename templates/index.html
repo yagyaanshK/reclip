@@ -100,11 +100,14 @@
     .dl-app-btn:hover { border-color: var(--muted); }
     .dl-app-btn svg { width: 14px; height: 14px; transition: transform 0.2s; }
     
-    .dropdown:hover .dl-app-btn { border-color: var(--accent); color: var(--accent); }
-    .dropdown:hover .dropdown-content {
+    .dropdown:hover .dl-app-btn,
+    .dropdown:focus-within .dl-app-btn { border-color: var(--accent); color: var(--accent); }
+    .dropdown:hover .dropdown-content,
+    .dropdown:focus-within .dropdown-content {
       opacity: 1; visibility: visible; transform: translateY(0);
     }
-    .dropdown:hover .dl-app-btn svg {
+    .dropdown:hover .dl-app-btn svg,
+    .dropdown:focus-within .dl-app-btn svg {
       transform: rotate(180deg);
     }
 

@@ -20,6 +20,8 @@ def run_download(job_id, url, format_choice, format_id):
     cmd = ["yt-dlp", "--no-playlist", "-o", out_template]
 
     if format_choice == "audio":
+        if format_id:
+            cmd += ["-f", format_id]
         cmd += ["-x", "--audio-format", "mp3"]
     elif format_id:
         cmd += ["-f", f"{format_id}+bestaudio/best", "--merge-output-format", "mp4"]
@@ -95,7 +97,16 @@ def get_info():
 
         # Build quality options — keep best format per resolution
         best_by_height = {}
+        audio_by_abr = {}
         for f in info.get("formats", []):
+            if f.get("vcodec") == "none":
+                abr = f.get("abr")
+                if abr:
+                    abr = int(abr)
+                    if abr not in audio_by_abr or (f.get("asr", 0) > audio_by_abr[abr].get("asr", 0)):
+                        audio_by_abr[abr] = f
+                continue
+
             height = f.get("height")
             if height and f.get("vcodec", "none") != "none":
                 tbr = f.get("tbr") or 0
@@ -111,12 +122,22 @@ def get_info():
             })
         formats.sort(key=lambda x: x["height"], reverse=True)
 
+        audio_formats = []
+        for abr, f in audio_by_abr.items():
+            audio_formats.append({
+                "id": f["format_id"],
+                "label": f"{abr}kbps",
+                "abr": abr,
+            })
+        audio_formats.sort(key=lambda x: x["abr"], reverse=True)
+
         return jsonify({
             "title": info.get("title", ""),
             "thumbnail": info.get("thumbnail", ""),
             "duration": info.get("duration"),
             "uploader": info.get("uploader", ""),
             "formats": formats,
+            "audioFormats": audio_formats,
         })
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Timed out fetching video info"}), 400
@@ -158,7 +179,8 @@ def check_status(job_id):
 
 
 @app.route("/api/file/<job_id>")
-def download_file(job_id):
+@app.route("/api/file/<job_id>/<path:filename>")
+def download_file(job_id, filename=None):
     job = jobs.get(job_id)
     if not job or job["status"] != "done":
         return jsonify({"error": "File not ready"}), 404

@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid
 import glob
 import json
@@ -6,6 +7,13 @@ import subprocess
 import threading
 from flask import Flask, request, jsonify, send_file, render_template
 
+if len(sys.argv) > 1 and sys.argv[1] == '--yt-dlp-worker':
+    import yt_dlp
+    sys.exit(yt_dlp.main(sys.argv[2:]))
+
+import imageio_ffmpeg
+YT_DLP_CMD = [sys.executable, "--yt-dlp-worker"] if getattr(sys, 'frozen', False) else [sys.executable, "-m", "yt_dlp"]
+YT_DLP_CMD.extend(["--ffmpeg-location", imageio_ffmpeg.get_ffmpeg_exe()])
 app = Flask(__name__)
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -17,9 +25,11 @@ def run_download(job_id, url, format_choice, format_id):
     job = jobs[job_id]
     out_template = os.path.join(DOWNLOAD_DIR, f"{job_id}.%(ext)s")
 
-    cmd = ["yt-dlp", "--no-playlist", "-o", out_template]
+    cmd = YT_DLP_CMD + ["--no-playlist", "-o", out_template]
 
     if format_choice == "audio":
+        if format_id:
+            cmd += ["-f", format_id]
         cmd += ["-x", "--audio-format", "mp3"]
     elif format_id:
         cmd += ["-f", f"{format_id}+bestaudio/best", "--merge-output-format", "mp4"]
@@ -85,7 +95,7 @@ def get_info():
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
-    cmd = ["yt-dlp", "--no-playlist", "-j", url]
+    cmd = YT_DLP_CMD + ["--no-playlist", "-j", url]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         if result.returncode != 0:
@@ -95,7 +105,16 @@ def get_info():
 
         # Build quality options — keep best format per resolution
         best_by_height = {}
+        audio_by_abr = {}
         for f in info.get("formats", []):
+            if f.get("vcodec") == "none":
+                abr = f.get("abr")
+                if abr:
+                    abr = int(abr)
+                    if abr not in audio_by_abr or (f.get("asr", 0) > audio_by_abr[abr].get("asr", 0)):
+                        audio_by_abr[abr] = f
+                continue
+
             height = f.get("height")
             if height and f.get("vcodec", "none") != "none":
                 tbr = f.get("tbr") or 0
@@ -111,12 +130,22 @@ def get_info():
             })
         formats.sort(key=lambda x: x["height"], reverse=True)
 
+        audio_formats = []
+        for abr, f in audio_by_abr.items():
+            audio_formats.append({
+                "id": f["format_id"],
+                "label": f"{abr}kbps",
+                "abr": abr,
+            })
+        audio_formats.sort(key=lambda x: x["abr"], reverse=True)
+
         return jsonify({
             "title": info.get("title", ""),
             "thumbnail": info.get("thumbnail", ""),
             "duration": info.get("duration"),
             "uploader": info.get("uploader", ""),
             "formats": formats,
+            "audioFormats": audio_formats,
         })
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Timed out fetching video info"}), 400
@@ -158,7 +187,8 @@ def check_status(job_id):
 
 
 @app.route("/api/file/<job_id>")
-def download_file(job_id):
+@app.route("/api/file/<job_id>/<path:filename>")
+def download_file(job_id, filename=None):
     job = jobs.get(job_id)
     if not job or job["status"] != "done":
         return jsonify({"error": "File not ready"}), 404

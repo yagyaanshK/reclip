@@ -487,6 +487,8 @@
               uploader: data.uploader || '',
               formats: data.formats || [],
               selectedFormatId: data.formats?.[0]?.id || null,
+              audioFormats: data.audioFormats || [],
+              selectedAudioFormatId: data.audioFormats?.[0]?.id || null,
             };
           }
         } catch (err) {
@@ -558,7 +560,11 @@
       }
 
       let qualityChips = '';
-      if (!isAudio && c.formats && c.formats.length > 1) {
+      if (isAudio && c.audioFormats && c.audioFormats.length > 1) {
+        qualityChips = c.audioFormats.map(f =>
+          `<button class="q-chip${f.id === c.selectedAudioFormatId ? ' active' : ''}" onclick="pickFormat(${idx}, '${f.id}')">${f.label}</button>`
+        ).join('');
+      } else if (!isAudio && c.formats && c.formats.length > 1) {
         qualityChips = c.formats.map(f =>
           `<button class="q-chip${f.id === c.selectedFormatId ? ' active' : ''}" onclick="pickFormat(${idx}, '${f.id}')">${f.label}</button>`
         ).join('');
@@ -599,7 +605,11 @@
     }
 
     function pickFormat(idx, formatId) {
-      cardData[idx].selectedFormatId = formatId;
+      if (currentFormat === 'audio') {
+        cardData[idx].selectedAudioFormatId = formatId;
+      } else {
+        cardData[idx].selectedFormatId = formatId;
+      }
       renderCard(idx);
     }
 
@@ -610,13 +620,14 @@
       renderCard(idx);
 
       try {
+        const payloadFormatId = currentFormat === 'audio' ? c.selectedAudioFormatId : c.selectedFormatId;
         const res = await fetch('/api/download', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             url: c.url,
             format: currentFormat,
-            format_id: c.selectedFormatId,
+            format_id: payloadFormatId,
             title: c.title || '',
           }),
         });
@@ -667,7 +678,7 @@
       const c = cardData[idx];
       if (!c.jobId) return;
       const a = document.createElement('a');
-      a.href = `/api/file/${c.jobId}`;
+      a.href = `/api/file/${c.jobId}/${encodeURIComponent(c.filename || 'download.mp4')}`;
       a.download = c.filename || '';
       a.click();
     }

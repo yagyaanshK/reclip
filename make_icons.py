@@ -72,8 +72,8 @@ def make_frame(size: int) -> Image.Image:
     cx = x0 + tw_r + gap
     c_draw.text((cx - bbox_c[0], cy), "C", font=font, fill=C_COL)
 
-    # Shear the C layer ~12° to fake italic
-    shear  = -0.21          # tangens of ~12°
+    # Shear the C layer ~12° to fake italic (forwards)
+    shear  = 0.21          # tangens of ~12°
     affine = (1, shear, -shear * size / 2,   0, 1, 0)
     c_layer = c_layer.transform(c_layer.size, Image.AFFINE, affine,
                                 resample=Image.BICUBIC)

@@ -3,6 +3,7 @@ import sys
 import uuid
 import glob
 import json
+import shutil
 import subprocess
 import threading
 from flask import Flask, request, jsonify, send_file, render_template
@@ -193,6 +194,41 @@ def download_file(job_id, filename=None):
     if not job or job["status"] != "done":
         return jsonify({"error": "File not ready"}), 404
     return send_file(job["file"], as_attachment=True, download_name=job["filename"])
+
+
+@app.route("/api/save/<job_id>", methods=["POST"])
+def save_file_native(job_id):
+    """Desktop-only: copy the downloaded file to a user-chosen location via native Save dialog."""
+    job = jobs.get(job_id)
+    if not job or job["status"] != "done":
+        return jsonify({"error": "File not ready"}), 404
+
+    src = job["file"]
+    suggested = job.get("filename", os.path.basename(src))
+    ext = os.path.splitext(suggested)[1] or ".mp4"
+
+    try:
+        import webview
+        # Get the active pywebview window for the native dialog
+        window = webview.windows[0] if webview.windows else None
+        if not window:
+            return jsonify({"error": "No active window"}), 500
+
+        result = window.create_file_dialog(
+            webview.SAVE_DIALOG,
+            save_filename=suggested,
+            file_types=(f'Media files (*{ext})',)
+        )
+        if result:
+            dest = result if isinstance(result, str) else result[0]
+            shutil.copy2(src, dest)
+            return jsonify({"ok": True, "path": dest})
+        else:
+            return jsonify({"ok": False, "error": "Cancelled"})
+    except ImportError:
+        return jsonify({"error": "Not running in desktop mode"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

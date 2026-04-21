@@ -674,9 +674,19 @@
       }, 1000);
     }
 
-    function saveCard(idx) {
+    async function saveCard(idx) {
       const c = cardData[idx];
       if (!c.jobId) return;
+
+      // Try native Save As dialog (desktop app)
+      try {
+        const res = await fetch(`/api/save/${c.jobId}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) return;                 // saved via native dialog
+        if (data.error === 'Cancelled') return; // user cancelled
+      } catch {}
+
+      // Fallback: browser-style download (web app)
       const a = document.createElement('a');
       a.href = `/api/file/${c.jobId}/${encodeURIComponent(c.filename || 'download.mp4')}`;
       a.download = c.filename || '';

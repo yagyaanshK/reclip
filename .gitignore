@@ -13,5 +13,6 @@ assets/*.mov
 build/
 dist/
 release_assets/
+icons/
 *.spec
 *.zip

@@ -595,6 +595,8 @@
               thumbnail: data.thumbnail || '',
               duration: data.duration,
               uploader: data.uploader || '',
+              artist: data.artist || '',
+              track: data.track || '',
               formats: data.formats || [],
               selectedFormatId: data.formats?.[0]?.id || null,
               audioFormats: data.audioFormats || [],
@@ -739,6 +741,9 @@
             format: currentFormat,
             format_id: payloadFormatId,
             title: c.title || '',
+            artist: c.artist || '',
+            track: c.track || '',
+            uploader: c.uploader || ''
           }),
         });
         const data = await res.json();

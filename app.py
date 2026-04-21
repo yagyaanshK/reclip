@@ -60,11 +60,23 @@ def run_download(job_id, url, format_choice, format_id):
         job["status"] = "done"
         job["file"] = chosen
         ext = os.path.splitext(chosen)[1]
-        title = job.get("title", "").strip()
-        # Sanitize title for filename
-        if title:
-            safe_title = "".join(c for c in title if c not in r'\/:*?"<>|').strip()[:20].strip()
-            job["filename"] = f"{safe_title}{ext}" if safe_title else os.path.basename(chosen)
+        
+        is_audio = job.get("format_choice") == "audio"
+        artist = job.get("artist", "")
+        track = job.get("track", "")
+        uploader = job.get("uploader", "")
+        title = job.get("title", "")
+        
+        if is_audio and artist and track:
+            raw_name = f"{artist} - {track}"
+        elif uploader and title:
+            raw_name = f"{uploader} - {title}"
+        else:
+            raw_name = title.strip()
+            
+        if raw_name:
+            safe_name = "".join(c for c in raw_name if c not in r'\/:*?"<>|').strip()[:80].strip()
+            job["filename"] = f"{safe_name}{ext}" if safe_name else os.path.basename(chosen)
         else:
             job["filename"] = os.path.basename(chosen)
     except subprocess.TimeoutExpired:
@@ -131,11 +143,16 @@ def get_info():
             })
         audio_formats.sort(key=lambda x: x["abr"], reverse=True)
 
+        art = info.get("artist")
+        artist_str = ", ".join(art) if isinstance(art, list) else str(art or "").strip()
+
         return jsonify({
             "title": info.get("title", ""),
             "thumbnail": info.get("thumbnail", ""),
             "duration": info.get("duration"),
             "uploader": info.get("uploader", ""),
+            "artist": artist_str,
+            "track": str(info.get("track") or "").strip(),
             "formats": formats,
             "audioFormats": audio_formats,
         })
@@ -152,12 +169,23 @@ def start_download():
     format_choice = data.get("format", "video")
     format_id = data.get("format_id")
     title = data.get("title", "")
+    artist = data.get("artist", "")
+    track = data.get("track", "")
+    uploader = data.get("uploader", "")
 
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
     job_id = uuid.uuid4().hex[:10]
-    jobs[job_id] = {"status": "downloading", "url": url, "title": title}
+    jobs[job_id] = {
+        "status": "downloading", 
+        "url": url, 
+        "title": title,
+        "artist": artist,
+        "track": track,
+        "uploader": uploader,
+        "format_choice": format_choice
+    }
 
     thread = threading.Thread(target=run_download, args=(job_id, url, format_choice, format_id))
     thread.daemon = True

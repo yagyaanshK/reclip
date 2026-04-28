@@ -17,3 +17,5 @@ dist/
 release_assets/
 *.spec
 *.zip
+PENDING_TASKS.md
+METADATA_FINDINGS.md

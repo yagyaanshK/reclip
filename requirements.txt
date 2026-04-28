@@ -1,2 +1,4 @@
 flask
 yt-dlp
+yt-dlp-ejs
+pycryptodomex

@@ -19,6 +19,9 @@ https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
 - Clean, responsive UI — no frameworks, no build step
 - Single Python file backend (~150 lines)
 - Native Desktop Apps — zero-install standalone executables for Windows, macOS, and Linux.
+- Intelligent Filename Generation — extracts and formats metadata gracefully (`Artist - Track.mp3` or `Channel - Title.mp4`).
+- Anti-Bot Bypassing — utilizes `yt-dlp-ejs` and `pycryptodomex` to natively solve JavaScript challenges (e.g., YouTube's "Sign in to confirm you're not a bot").
+- Automated Build Pipeline — GitHub Actions automatically compiles and publishes new executables upon every version tag push.
 
 ## 🚀 Download ReClip App
 
@@ -77,7 +80,7 @@ YouTube, TikTok, Instagram, Twitter/X, Reddit, Facebook, Vimeo, Twitch, Dailymot
 - **Backend:** Python + Flask (~150 lines)
 - **Frontend:** Vanilla HTML/CSS/JS (single file, no build step)
 - **Download engine:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) + [ffmpeg](https://ffmpeg.org/)
-- **Dependencies:** 2 (Flask, yt-dlp)
+- **Dependencies:** `flask`, `yt-dlp`, `yt-dlp-ejs`, `pycryptodomex`, `pywebview`, `pyinstaller`, `imageio-ffmpeg`
 
 ## Disclaimer
 

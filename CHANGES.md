@@ -51,4 +51,7 @@ Live deployment: https://huggingface.co/spaces/Daddy23/reclip
 
 ## Summary
 
-All changes are deployment-related. **No application logic was modified.** The app behaves identically to the original — only the container configuration was adapted for HF Spaces.
+We have heavily enhanced this fork from the original repository:
+1. **Intelligent Filenames**: Extracts `Artist` and `Track` to generate proper MP3 filenames, or `Channel` and `Title` for MP4s.
+2. **Anti-Bot Engine**: Bundled `yt-dlp-ejs` and `pycryptodomex` to bypass YouTube's aggressive bot-detection and JS challenges natively.
+3. **HF Spaces Optimization**: Fully re-configured the Docker environment and network stack (DNS forced to Cloudflare) to ensure Hugging Face deployment stability.

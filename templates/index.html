@@ -21,6 +21,17 @@
       --radius: 14px;
       --shimmer: linear-gradient(90deg, #ebe8e2 25%, #f0ede7 50%, #ebe8e2 75%);
     }
+    
+    [data-theme="dark"] {
+      --bg: #121212;
+      --fg: #e4e4e4;
+      --accent: #e85d2a;
+      --accent-hover: #ff723c;
+      --muted: #888888;
+      --card: #1e1e1e;
+      --card-border: #333333;
+      --shimmer: linear-gradient(90deg, #2b2b2b 25%, #383838 50%, #2b2b2b 75%);
+    }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -40,6 +51,9 @@
       pointer-events: none;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
       background-size: 128px;
+    }
+    [data-theme="dark"] body::after {
+      opacity: 0.015;
     }
 
     .page {
@@ -378,6 +392,30 @@
       line-height: 1.8;
     }
 
+    .theme-toggle {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      background: var(--card);
+      border: 1.5px solid var(--card-border);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      color: var(--fg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .theme-toggle:hover {
+      border-color: var(--muted);
+    }
+    .theme-toggle svg {
+      width: 18px;
+      height: 18px;
+    }
+
     /* Mobile */
     @media (max-width: 500px) {
       .brand h1 { font-size: 3rem; }
@@ -395,6 +433,11 @@
   </style>
 </head>
 <body>
+  <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+    <svg id="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    <svg id="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+  </button>
+
   <div class="page">
     <div class="brand">
       <h1>Re<em>Clip</em></h1>
@@ -406,9 +449,14 @@
 
     <div class="controls">
       <div class="pill-group">
-        <button class="pill active" data-format="video" onclick="setFormat(this)">MP4</button>
+        <button class="pill active" data-format="video" onclick="setFormat(this)">Video</button>
         <button class="pill" data-format="audio" onclick="setFormat(this)">Audio</button>
       </div>
+      <select id="video-codec" class="codec-select">
+        <option value="mp4">MP4</option>
+        <option value="mkv">MKV</option>
+        <option value="webm">WebM</option>
+      </select>
       <select id="audio-codec" class="codec-select" style="display: none;">
         <option value="mp3">MP3</option>
         <option value="m4a">M4A (AAC)</option>
@@ -429,6 +477,31 @@
   </div>
 
   <script>
+    const themeToggle = document.getElementById('theme-toggle');
+    const moonIcon = document.getElementById('moon-icon');
+    const sunIcon = document.getElementById('sun-icon');
+
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+      if (theme === 'dark') {
+        moonIcon.style.display = 'none';
+        sunIcon.style.display = 'block';
+      } else {
+        moonIcon.style.display = 'block';
+        sunIcon.style.display = 'none';
+      }
+    }
+
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+
+    themeToggle.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    });
+
     let currentFormat = 'video';
     let cardData = [];
 
@@ -437,6 +510,7 @@
       btn.classList.add('active');
       currentFormat = btn.dataset.format;
       document.getElementById('audio-codec').style.display = currentFormat === 'audio' ? 'block' : 'none';
+      document.getElementById('video-codec').style.display = currentFormat === 'video' ? 'block' : 'none';
     }
 
     function parseUrls(text) {
@@ -652,6 +726,7 @@
             url: c.url,
             format: currentFormat,
             format_id: payloadFormatId,
+            video_codec: document.getElementById('video-codec').value,
             audio_codec: document.getElementById('audio-codec').value,
             title: c.title || '',
             artist: c.artist || '',

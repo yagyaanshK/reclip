@@ -22,7 +22,7 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 jobs = {}
 
 
-def run_download(job_id, url, format_choice, format_id):
+def run_download(job_id, url, format_choice, format_id, audio_codec="mp3"):
     job = jobs[job_id]
     out_template = os.path.join(DOWNLOAD_DIR, f"{job_id}.%(ext)s")
 
@@ -31,7 +31,10 @@ def run_download(job_id, url, format_choice, format_id):
     if format_choice == "audio":
         if format_id:
             cmd += ["-f", format_id]
-        cmd += ["-x", "--audio-format", "mp3"]
+        if audio_codec == "best":
+            cmd += ["-x"]
+        else:
+            cmd += ["-x", "--audio-format", audio_codec]
     elif format_id:
         cmd += ["-f", f"{format_id}+bestaudio/best", "--merge-output-format", "mp4"]
     else:
@@ -53,7 +56,10 @@ def run_download(job_id, url, format_choice, format_id):
             return
 
         if format_choice == "audio":
-            target = [f for f in files if f.endswith(".mp3")]
+            if audio_codec != "best":
+                target = [f for f in files if f.endswith(f".{audio_codec}")]
+            else:
+                target = [f for f in files if not f.endswith(".mp4") and not f.endswith(".webm")]
             chosen = target[0] if target else files[0]
         else:
             target = [f for f in files if f.endswith(".mp4")]
@@ -177,6 +183,7 @@ def start_download():
     url = data.get("url", "").strip()
     format_choice = data.get("format", "video")
     format_id = data.get("format_id")
+    audio_codec = data.get("audio_codec", "mp3")
     title = data.get("title", "")
     artist = data.get("artist", "")
     track = data.get("track", "")
@@ -193,10 +200,11 @@ def start_download():
         "artist": artist,
         "track": track,
         "uploader": uploader,
-        "format_choice": format_choice
+        "format_choice": format_choice,
+        "audio_codec": audio_codec
     }
 
-    thread = threading.Thread(target=run_download, args=(job_id, url, format_choice, format_id))
+    thread = threading.Thread(target=run_download, args=(job_id, url, format_choice, format_id, audio_codec))
     thread.daemon = True
     thread.start()
 

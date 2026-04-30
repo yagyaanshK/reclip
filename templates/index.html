@@ -96,9 +96,8 @@
 
     .controls {
       display: flex;
-      gap: 10px;
-      margin-bottom: 6px;
-      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
     }
     .pill-group {
       display: flex;
@@ -106,6 +105,21 @@
       border-radius: 10px;
       overflow: hidden;
       background: var(--card);
+    }
+    .codec-select {
+      background: var(--card);
+      color: var(--fg);
+      border: 1.5px solid var(--card-border);
+      border-radius: 10px;
+      padding: 0 12px;
+      font-size: 0.76rem;
+      cursor: pointer;
+      outline: none;
+      font-family: 'DM Mono', monospace;
+      transition: all 0.2s;
+    }
+    .codec-select:hover {
+      border-color: var(--muted);
     }
     .pill {
       padding: 9px 18px;
@@ -393,8 +407,15 @@
     <div class="controls">
       <div class="pill-group">
         <button class="pill active" data-format="video" onclick="setFormat(this)">MP4</button>
-        <button class="pill" data-format="audio" onclick="setFormat(this)">MP3</button>
+        <button class="pill" data-format="audio" onclick="setFormat(this)">Audio</button>
       </div>
+      <select id="audio-codec" class="codec-select" style="display: none;">
+        <option value="mp3">MP3</option>
+        <option value="m4a">M4A (AAC)</option>
+        <option value="flac">FLAC</option>
+        <option value="wav">WAV</option>
+        <option value="best">Native (Best)</option>
+      </select>
       <button class="fetch-btn" id="goBtn" onclick="go()">Fetch</button>
     </div>
 
@@ -415,6 +436,7 @@
       document.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentFormat = btn.dataset.format;
+      document.getElementById('audio-codec').style.display = currentFormat === 'audio' ? 'block' : 'none';
     }
 
     function parseUrls(text) {
@@ -630,6 +652,7 @@
             url: c.url,
             format: currentFormat,
             format_id: payloadFormatId,
+            audio_codec: document.getElementById('audio-codec').value,
             title: c.title || '',
             artist: c.artist || '',
             track: c.track || '',

@@ -56,8 +56,8 @@ def make_frame(size: int) -> Image.Image:
     tw_c   = bbox_c[2] - bbox_c[0]
     th_c   = bbox_c[3] - bbox_c[1]
 
-    # Place them so total width ≈ 75 % of the frame, centred
-    gap    = int(size * 0.03)
+    # Place them so they are almost touching, centred
+    gap    = int(size * -0.06)
     total  = tw_r + gap + tw_c
     x0     = (size - total) // 2
 

@@ -31,53 +31,40 @@ def make_frame(size: int) -> Image.Image:
     r = max(2, size // 4)
     draw.rounded_rectangle([0, 0, size - 1, size - 1], radius=r, fill=BG)
 
-    # Typography – try to use a real serif, fall back to Pillow default
     font_size = int(size * 0.74)
-    font = None
-    for candidate in [
-        "GeorgiaItalic.ttf", "Georgia.ttf", "georgia.ttf",
-        "Times New Roman.ttf", "timesbd.ttf",
-    ]:
-        try:
-            font = ImageFont.truetype(candidate, font_size)
-            break
-        except OSError:
-            pass
-    if font is None:
-        font = ImageFont.load_default()
+    font_r = None
+    font_c = None
+    try:
+        font_r = ImageFont.truetype("assets/fonts/InstrumentSerif-Regular.ttf", font_size)
+        font_c = ImageFont.truetype("assets/fonts/InstrumentSerif-Italic.ttf", font_size)
+    except OSError:
+        font_r = ImageFont.load_default()
+        font_c = ImageFont.load_default()
 
     # --- "R" (left half, upright) ---
-    bbox_r = draw.textbbox((0, 0), "R", font=font)
+    bbox_r = draw.textbbox((0, 0), "R", font=font_r)
     tw_r   = bbox_r[2] - bbox_r[0]
     th_r   = bbox_r[3] - bbox_r[1]
 
-    # --- "C" (right half, draw with slight slant via affine transform) ---
-    bbox_c = draw.textbbox((0, 0), "C", font=font)
+    # --- "C" (right half, native italic) ---
+    bbox_c = draw.textbbox((0, 0), "C", font=font_c)
     tw_c   = bbox_c[2] - bbox_c[0]
     th_c   = bbox_c[3] - bbox_c[1]
 
     # Place them so they are almost touching, centred
-    gap    = int(size * -0.06)
+    gap    = int(size * -0.02) # Adjusted gap for true italics
     total  = tw_r + gap + tw_c
     x0     = (size - total) // 2
 
-    # Vertical centre based on cap-height (bbox top is usually the ascender)
+    # Vertical centre based on cap-height
     cy = (size - th_r) // 2 - bbox_r[1]
 
-    draw.text((x0 - bbox_r[0], cy), "R", font=font, fill=R_COL)
+    draw.text((x0 - bbox_r[0], cy), "R", font=font_r, fill=R_COL)
 
-    # Draw "C" on a tmp layer and paste (enables us to italicise via shear)
-    c_layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    c_draw  = ImageDraw.Draw(c_layer)
+    # Draw "C"
     cx = x0 + tw_r + gap
-    c_draw.text((cx - bbox_c[0], cy), "C", font=font, fill=C_COL)
-
-    # Shear the C layer ~12° to fake italic (forwards)
-    shear  = 0.21          # tangens of ~12°
-    affine = (1, shear, -shear * size / 2,   0, 1, 0)
-    c_layer = c_layer.transform(c_layer.size, Image.AFFINE, affine,
-                                resample=Image.BICUBIC)
-    img = Image.alpha_composite(img, c_layer)
+    draw.text((cx - bbox_c[0], cy), "C", font=font_c, fill=C_COL)
+    
     return img
 
 
@@ -131,3 +118,7 @@ except Exception:
     with open(os.path.join(OUT, "app.icns"), "wb") as f:
         f.write(MAGIC + total.to_bytes(4, "big") + entry)
     print("[ok] icons/app.icns  (fallback PNG-in-ICNS)")
+
+if os.path.exists("static"):
+    frames[128].save(os.path.join("static", "favicon.png"))
+    print("[ok] static/favicon.png")

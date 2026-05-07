@@ -622,7 +622,14 @@
       currentFormat = btn.dataset.format;
       document.getElementById('audio-codec').style.display = currentFormat === 'audio' ? 'block' : 'none';
       document.getElementById('video-codec').style.display = currentFormat === 'video' ? 'block' : 'none';
+      reRenderCards();
     }
+
+    function reRenderCards() {
+      cardData.forEach((c, i) => { if (c.status === 'ready') renderCard(i); });
+    }
+
+    document.getElementById('audio-codec').addEventListener('change', reRenderCards);
 
     function parseUrls(text) {
       return [...new Set(text.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http')))];
@@ -769,10 +776,14 @@
       }
 
       let qualityChips = '';
-      if (isAudio && c.audioFormats && c.audioFormats.length > 1) {
+      const audioCodec = document.getElementById('audio-codec').value;
+      const showAudioChips = isAudio && ['mp3', 'm4a'].includes(audioCodec);
+      if (isAudio && showAudioChips && c.audioFormats && c.audioFormats.length > 1) {
         qualityChips = c.audioFormats.map(f =>
           `<button class="q-chip${f.id === c.selectedAudioFormatId ? ' active' : ''}" onclick="pickFormat(${idx}, '${f.id}')">${f.label}</button>`
         ).join('');
+      } else if (isAudio && !showAudioChips && c.audioFormats && c.audioFormats.length > 0) {
+        qualityChips = `<span class="card-status" style="font-size:0.7rem;color:var(--muted)">Best source auto-selected</span>`;
       } else if (!isAudio && c.formats && c.formats.length > 1) {
         qualityChips = c.formats.map(f =>
           `<button class="q-chip${f.id === c.selectedFormatId ? ' active' : ''}" onclick="pickFormat(${idx}, '${f.id}')">${f.label}</button>`
@@ -829,7 +840,15 @@
       renderCard(idx);
 
       try {
-        const payloadFormatId = currentFormat === 'audio' ? c.selectedAudioFormatId : c.selectedFormatId;
+        const audioCodec = document.getElementById('audio-codec').value;
+        let payloadFormatId;
+        if (currentFormat === 'audio' && ['wav', 'flac', 'best'].includes(audioCodec)) {
+          payloadFormatId = c.audioFormats?.[0]?.id || c.selectedAudioFormatId;
+        } else if (currentFormat === 'audio') {
+          payloadFormatId = c.selectedAudioFormatId;
+        } else {
+          payloadFormatId = c.selectedFormatId;
+        }
         const res = await fetch('/api/download', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

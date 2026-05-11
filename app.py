@@ -98,6 +98,16 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/robots.txt")
+def robots():
+    return send_file(os.path.join(app.static_folder, "robots.txt"), mimetype="text/plain")
+
+
+@app.route("/llms.txt")
+def llms():
+    return send_file(os.path.join(app.static_folder, "llms.txt"), mimetype="text/plain")
+
+
 @app.route("/api/info", methods=["POST"])
 def get_info():
     data = request.json

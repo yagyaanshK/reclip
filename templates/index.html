@@ -115,13 +115,13 @@
     .dl-app-btn svg { width: 14px; height: 14px; transition: transform 0.2s; }
     
     .dropdown:hover .dl-app-btn,
-    .dropdown:focus-within .dl-app-btn { border-color: var(--accent); color: var(--accent); }
+    .dropdown.open .dl-app-btn { border-color: var(--accent); color: var(--accent); }
     .dropdown:hover .dropdown-content,
-    .dropdown:focus-within .dropdown-content {
+    .dropdown.open .dropdown-content {
       opacity: 1; visibility: visible; transform: translateY(0);
     }
     .dropdown:hover .dl-app-btn svg,
-    .dropdown:focus-within .dl-app-btn svg {
+    .dropdown.open .dl-app-btn svg {
       transform: rotate(180deg);
     }
 
@@ -503,7 +503,7 @@
       .header { flex-direction: column; gap: 24px; align-items: flex-start; }
       .dropdown { width: 100%; margin-top: 0; position: relative; }
       .dl-app-btn { width: 100%; justify-content: center; }
-      .dropdown-content { width: 100%; }
+      .dropdown-content { width: 100%; left: 0; right: auto; box-sizing: border-box; }
       .card { flex-direction: column; gap: 10px; }
       .card-thumb {
         width: 100%;
@@ -937,6 +937,20 @@
       }
 
       if (btn) { btn.disabled = false; btn.textContent = 'Download All'; }
+    }
+
+    const dropdownBtn = document.querySelector('.dl-app-btn');
+    const dropdownContainer = document.querySelector('.dropdown');
+    if (dropdownBtn && dropdownContainer) {
+      dropdownBtn.addEventListener('click', (e) => {
+        dropdownContainer.classList.toggle('open');
+        e.stopPropagation();
+      });
+      document.addEventListener('click', (e) => {
+        if (!dropdownContainer.contains(e.target)) {
+          dropdownContainer.classList.remove('open');
+        }
+      });
     }
   </script>
 </body>

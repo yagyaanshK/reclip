@@ -22,6 +22,17 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 jobs = {}
 
 
+@app.after_request
+def add_security_headers(response):
+    # Required for ffmpeg.wasm on /trim — needs SharedArrayBuffer,
+    # which is only available in cross-origin isolated contexts.
+    # `credentialless` is the most permissive — cross-origin resources
+    # (Google Fonts, unpkg) load without credentials and don't need CORP headers.
+    response.headers.setdefault('Cross-Origin-Opener-Policy', 'same-origin')
+    response.headers.setdefault('Cross-Origin-Embedder-Policy', 'credentialless')
+    return response
+
+
 def run_download(job_id, url, format_choice, format_id, audio_codec="mp3", video_codec="mp4"):
     job = jobs[job_id]
     out_template = os.path.join(DOWNLOAD_DIR, f"{job_id}.%(ext)s")

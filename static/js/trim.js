@@ -71,6 +71,21 @@
   }
   function clearStatus() { setStatus('', null); els.status.classList.add('hidden'); }
 
+  // Reliable duration detection via Web Audio API. Works on raw AAC files
+  // where WaveSurfer's getDuration()/getDecodedData() may return 0.
+  async function detectDurationFromFile(file) {
+    const AudioCtxCls = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtxCls) return 0;
+    const ctx = new AudioCtxCls();
+    try {
+      const buf = await file.arrayBuffer();
+      const audioBuf = await ctx.decodeAudioData(buf.slice(0));
+      return audioBuf.duration || 0;
+    } finally {
+      try { await ctx.close(); } catch (_) {}
+    }
+  }
+
   // ---------------- Capabilities ----------------
   async function detectCapabilities() {
     try {
@@ -152,9 +167,11 @@
   // ---------------- Load source into waveform ----------------
   async function loadSource(src) {
     state.source = src;
+    state.duration = 0;
     els.fileName.textContent = src.name;
     els.fileDuration.textContent = '…';
     els.panel.classList.remove('hidden');
+    setStatus('Loading audio…', 'info');
 
     // Tear down any previous wavesurfer instance to avoid leaks.
     if (state.wavesurfer) {
@@ -179,8 +196,16 @@
     const regionsPlugin = ws.registerPlugin(WaveSurfer.Regions.create());
     state.regions = regionsPlugin;
 
+    ws.on('loading', (percent) => {
+      if (state.duration === 0) {
+        setStatus(`Reading file… ${percent | 0}%`, 'info');
+      }
+    });
+
     const url = URL.createObjectURL(src.file);
-    await ws.load(url);
+    ws.load(url).catch((err) => {
+      setStatus(`Failed to load audio: ${err.message || err}`, 'error');
+    });
 
     const applyDuration = () => {
       let d = ws.getDuration();
@@ -193,19 +218,32 @@
           }
         } catch (_) {}
       }
-      state.duration = d > 0 ? d : 0;
-      els.fileDuration.textContent = state.duration > 0 ? fmt(state.duration) : '—';
-      if (state.duration > 0) {
+      // Latch: never overwrite a known-good duration with 0 from a later event.
+      if (d > 0 && d > state.duration) {
+        state.duration = d;
+        els.fileDuration.textContent = fmt(state.duration);
         els.endTime.value = fmt(state.duration);
         ensureRegion(0, state.duration);
+        updateCurrentTime(ws.getCurrentTime() || 0);
+        clearStatus();
       }
-      els.startTime.value = '0:00';
-      updateCurrentTime(0);
     };
     ws.on('ready', applyDuration);
     ws.on('decode', applyDuration);
     ws.on('audioprocess', (t) => updateCurrentTime(t));
     ws.on('seeking', (t) => updateCurrentTime(t));
+
+    // Parallel path: decode via Web Audio API directly for reliable duration on raw AAC.
+    detectDurationFromFile(src.file).then(d => {
+      if (d > 0 && d > state.duration) {
+        state.duration = d;
+        els.fileDuration.textContent = fmt(state.duration);
+        els.endTime.value = fmt(state.duration);
+        ensureRegion(0, state.duration);
+        updateCurrentTime(ws.getCurrentTime() || 0);
+        clearStatus();
+      }
+    }).catch(() => {});
     ws.on('finish', () => setPlayIcon(false));
     ws.on('play', () => setPlayIcon(true));
     ws.on('pause', () => setPlayIcon(false));

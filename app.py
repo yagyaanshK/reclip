@@ -235,6 +235,113 @@ def download_file(job_id, filename=None):
     return send_file(job["file"], as_attachment=True, download_name=job["filename"])
 
 
+TRIM_BACKEND_ENABLED = os.environ.get("RECLIP_TRIM_BACKEND", "enabled").lower() != "disabled"
+
+
+@app.route("/trim")
+def trim_page():
+    return render_template("trim.html")
+
+
+@app.route("/api/capabilities")
+def capabilities():
+    return jsonify({"trimBackend": TRIM_BACKEND_ENABLED})
+
+
+@app.route("/api/recent-downloads")
+def recent_downloads():
+    """Audio downloads completed in this session, surfaced on the trim page."""
+    audio = []
+    for jid, job in jobs.items():
+        if job.get("status") == "done" and job.get("format_choice") == "audio":
+            audio.append({
+                "id": jid,
+                "filename": job.get("filename", ""),
+                "title": job.get("title", ""),
+            })
+    return jsonify(audio)
+
+
+def _parse_time(value, fallback=None):
+    if value is None or value == "":
+        return fallback
+    s = str(value).strip()
+    if ":" in s:
+        parts = s.split(":")
+        total = 0.0
+        for p in parts:
+            total = total * 60 + float(p)
+        return total
+    return float(s)
+
+
+@app.route("/api/trim", methods=["POST"])
+def trim_audio():
+    if not TRIM_BACKEND_ENABLED:
+        return jsonify({"error": "Trim backend disabled on this instance"}), 503
+
+    file_obj = request.files.get("file")
+    job_id = request.form.get("job_id")
+    try:
+        start = _parse_time(request.form.get("start"), 0.0)
+        end = _parse_time(request.form.get("end"))
+    except ValueError:
+        return jsonify({"error": "Invalid start/end time"}), 400
+
+    mode = (request.form.get("mode") or "copy").lower()
+    if mode not in ("copy", "encode"):
+        mode = "copy"
+
+    trim_id = uuid.uuid4().hex[:10]
+    cleanup_src = False
+
+    if file_obj and file_obj.filename:
+        ext = os.path.splitext(file_obj.filename)[1].lower() or ".aac"
+        src_path = os.path.join(DOWNLOAD_DIR, f"trim_src_{trim_id}{ext}")
+        file_obj.save(src_path)
+        cleanup_src = True
+        original_name = os.path.splitext(file_obj.filename)[0]
+    elif job_id:
+        job = jobs.get(job_id)
+        if not job or job.get("status") != "done":
+            return jsonify({"error": "Source download not found or not complete"}), 404
+        src_path = job["file"]
+        ext = os.path.splitext(src_path)[1].lower()
+        original_name = os.path.splitext(job.get("filename", "audio"))[0]
+    else:
+        return jsonify({"error": "No source file or job_id provided"}), 400
+
+    out_ext = ext if ext else ".aac"
+    out_path = os.path.join(DOWNLOAD_DIR, f"trim_out_{trim_id}{out_ext}")
+
+    if mode == "copy":
+        cmd = ["ffmpeg", "-y", "-ss", str(start)]
+        if end is not None:
+            cmd += ["-to", str(end)]
+        cmd += ["-i", src_path, "-c", "copy", out_path]
+    else:
+        cmd = ["ffmpeg", "-y", "-i", src_path, "-ss", str(start)]
+        if end is not None:
+            cmd += ["-to", str(end)]
+        cmd += ["-c:a", "aac", "-b:a", "192k", out_path]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        if result.returncode != 0:
+            return jsonify({"error": result.stderr.strip()[-400:] or "ffmpeg failed"}), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Trim timed out (3 min limit)"}), 500
+    finally:
+        if cleanup_src and os.path.exists(src_path):
+            try:
+                os.remove(src_path)
+            except OSError:
+                pass
+
+    download_name = f"{original_name}_trimmed{out_ext}"
+    return send_file(out_path, as_attachment=True, download_name=download_name)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
     host = os.environ.get("HOST", "127.0.0.1")

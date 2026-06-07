@@ -392,6 +392,27 @@
       line-height: 1.8;
     }
 
+    .tools-link {
+      margin-top: 40px;
+      text-align: center;
+    }
+    .tools-link a {
+      display: inline-block;
+      padding: 6px 14px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-decoration: none;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tools-link a:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
     .theme-toggle {
       position: fixed;
       bottom: 24px;
@@ -469,6 +490,10 @@
     </div>
 
     <div id="cards" class="cards"></div>
+
+    <div class="tools-link">
+      <a href="/trim">Trim Audio &rarr;</a>
+    </div>
 
     <div class="footer">
       YouTube &middot; TikTok &middot; Instagram &middot; Twitter/X &middot; Reddit &middot; Facebook<br>

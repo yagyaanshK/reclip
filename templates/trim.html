@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReClip: Trim Audio</title>
+  <link rel="icon" href="/static/favicon.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f4f1eb;
+      --fg: #3a3a38;
+      --accent: #e85d2a;
+      --accent-hover: #d04e1f;
+      --muted: #9c9889;
+      --card: #fff;
+      --card-border: #e2ded6;
+      --success: #2d8a4e;
+      --error: #c43d3d;
+      --radius: 14px;
+    }
+
+    [data-theme="dark"] {
+      --bg: #121212;
+      --fg: #e4e4e4;
+      --accent: #e85d2a;
+      --accent-hover: #ff723c;
+      --muted: #888888;
+      --card: #1e1e1e;
+      --card-border: #333333;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Mono', monospace;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      opacity: 0.03;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      background-size: 128px;
+    }
+    [data-theme="dark"] body::after { opacity: 0.015; }
+
+    .page {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 36px;
+    }
+    .back-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+    .back-link:hover { color: var(--fg); }
+
+    .brand h1 {
+      font-family: 'Instrument Serif', serif;
+      font-size: 3rem;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .brand h1 em { font-style: italic; color: var(--accent); }
+    .brand p {
+      margin-top: 8px;
+      font-size: 0.74rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    /* Drop zone */
+    .dropzone {
+      border: 1.5px dashed var(--card-border);
+      border-radius: var(--radius);
+      background: var(--card);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 16px;
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--accent);
+      background: var(--card);
+    }
+    .dropzone-icon {
+      font-family: 'Instrument Serif', serif;
+      font-size: 2.4rem;
+      color: var(--muted);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .dropzone-text {
+      font-size: 0.82rem;
+      color: var(--fg);
+      margin-bottom: 4px;
+    }
+    .dropzone-sub {
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+    .dropzone input[type="file"] { display: none; }
+
+    /* Recent downloads */
+    .recent-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      font-size: 0.74rem;
+      color: var(--muted);
+    }
+    .recent-row label {
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .recent-select {
+      flex: 1;
+      background: var(--card);
+      color: var(--fg);
+      border: 1.5px solid var(--card-border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 0.78rem;
+      font-family: 'DM Mono', monospace;
+      cursor: pointer;
+      outline: none;
+    }
+    .recent-select:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Trim panel */
+    .trim-panel {
+      background: var(--card);
+      border: 1.5px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+      animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .trim-panel.hidden { display: none; }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .file-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 18px;
+      gap: 12px;
+    }
+    .file-name {
+      font-size: 0.82rem;
+      color: var(--fg);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-duration {
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    #waveform {
+      margin-bottom: 8px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .play-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .play-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1.5px solid var(--card-border);
+      background: var(--card);
+      color: var(--fg);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .play-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .play-btn svg { width: 14px; height: 14px; }
+    .current-time {
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .time-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .time-field label {
+      display: block;
+      font-size: 0.66rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .time-field input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--card-border);
+      border-radius: 8px;
+      background: var(--card);
+      color: var(--fg);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.86rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .time-field input:focus { border-color: var(--accent); }
+
+    .mode-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 22px;
+      font-size: 0.74rem;
+    }
+    .mode-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+    .mode-option input { accent-color: var(--accent); }
+    .mode-option.selected { color: var(--fg); }
+    .mode-hint {
+      font-size: 0.66rem;
+      color: var(--muted);
+      margin-top: -10px;
+      margin-bottom: 18px;
+      letter-spacing: 0.02em;
+    }
+
+    .export-btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .export-btn:hover { background: var(--accent-hover); }
+    .export-btn:active { transform: scale(0.99); }
+    .export-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .status {
+      margin-top: 14px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.74rem;
+      text-align: center;
+      letter-spacing: 0.02em;
+    }
+    .status.info { background: rgba(232, 93, 42, 0.08); color: var(--accent); }
+    .status.error { background: rgba(196, 61, 61, 0.1); color: var(--error); }
+    .status.success { background: rgba(45, 138, 78, 0.1); color: var(--success); }
+    .status.hidden { display: none; }
+
+    .engine-badge {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 4px 10px;
+      font-size: 0.62rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 100;
+      background: var(--card);
+      border: 1.5px solid var(--card-border);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      color: var(--fg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .theme-toggle:hover { border-color: var(--muted); }
+    .theme-toggle svg { width: 18px; height: 18px; }
+
+    @media (max-width: 500px) {
+      .page { padding: 24px 16px 60px; }
+      .brand h1 { font-size: 2.4rem; }
+      .time-grid { grid-template-columns: 1fr; gap: 12px; }
+      .mode-row { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+    <svg id="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    <svg id="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+  </button>
+
+  <div class="page">
+    <div class="top-bar">
+      <div class="brand">
+        <h1>Trim <em>Audio</em></h1>
+        <p>Lossless &amp; precise audio trimming</p>
+      </div>
+      <a href="/" class="back-link">&larr; Back</a>
+    </div>
+
+    <label class="dropzone" id="dropzone">
+      <div class="dropzone-icon">+</div>
+      <div class="dropzone-text">Drop an audio file here or click to browse</div>
+      <div class="dropzone-sub">AAC &middot; M4A &middot; MP3 &middot; WAV &middot; OGG &middot; FLAC</div>
+      <input type="file" id="file-input" accept="audio/*,.aac,.m4a,.mp3,.wav,.ogg,.flac">
+    </label>
+
+    <div class="recent-row">
+      <label for="recent-select">Or pick from this session:</label>
+      <select id="recent-select" class="recent-select" disabled>
+        <option value="">No recent downloads</option>
+      </select>
+    </div>
+
+    <div class="trim-panel hidden" id="trim-panel">
+      <div class="file-info">
+        <div class="file-name" id="file-name">—</div>
+        <div class="file-duration" id="file-duration">—</div>
+      </div>
+
+      <div id="waveform"></div>
+
+      <div class="play-row">
+        <button class="play-btn" id="play-btn" aria-label="Play / pause">
+          <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+        </button>
+        <div class="current-time" id="current-time">0:00 / 0:00</div>
+      </div>
+
+      <div class="time-grid">
+        <div class="time-field">
+          <label for="start-time">Start</label>
+          <input type="text" id="start-time" value="0:00" placeholder="0:00">
+        </div>
+        <div class="time-field">
+          <label for="end-time">End</label>
+          <input type="text" id="end-time" value="0:00" placeholder="0:00">
+        </div>
+      </div>
+
+      <div class="mode-row">
+        <label class="mode-option selected" data-mode-label>
+          <input type="radio" name="mode" value="copy" checked>
+          <span>Fast (lossless)</span>
+        </label>
+        <label class="mode-option" data-mode-label>
+          <input type="radio" name="mode" value="encode">
+          <span>Precise (re-encode)</span>
+        </label>
+      </div>
+      <p class="mode-hint" id="mode-hint">Fast: instant, cuts snap to keyframes (~1s accuracy). Precise: exact cuts, takes a few seconds.</p>
+
+      <button class="export-btn" id="export-btn">Export Trimmed</button>
+
+      <div class="status hidden" id="status"></div>
+
+      <div style="text-align:center"><span class="engine-badge" id="engine-badge">Engine: detecting&hellip;</span></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/wavesurfer.js@7"></script>
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
+  <script src="/static/js/trim.js"></script>
+  <script>
+    // Theme toggle — mirrors index.html behavior.
+    (function () {
+      const root = document.documentElement;
+      const toggle = document.getElementById('theme-toggle');
+      const moon = document.getElementById('moon-icon');
+      const sun = document.getElementById('sun-icon');
+      function apply(theme) {
+        root.setAttribute('data-theme', theme);
+        localStorage.setItem('reclip-theme', theme);
+        moon.style.display = theme === 'light' ? 'block' : 'none';
+        sun.style.display = theme === 'dark' ? 'block' : 'none';
+      }
+      const saved = localStorage.getItem('reclip-theme');
+      const prefers = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      apply(saved || prefers);
+      toggle.addEventListener('click', () => {
+        const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        apply(next);
+      });
+    })();
+  </script>
+</body>
+</html>

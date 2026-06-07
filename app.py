@@ -361,14 +361,19 @@ def trim_audio():
     out_path = os.path.join(DOWNLOAD_DIR, f"trim_out_{trim_id}{out_ext}")
     ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
 
-    if mode == "copy":
+    # Raw .aac has no timestamps → `-c copy` with -ss/-to silently produces a
+    # 0-byte file. Force re-encode for .aac regardless of mode.
+    must_reencode = ext == ".aac"
+    use_copy = mode == "copy" and not must_reencode
+
+    if use_copy:
         # Fast lossless: seek before input, snaps to keyframe boundary.
         cmd = [ffmpeg_path, "-y", "-ss", str(start)]
         if end is not None:
             cmd += ["-to", str(end)]
         cmd += ["-i", src_path, "-c", "copy", out_path]
     else:
-        # Precise re-encode: seek after input, exact cuts.
+        # Re-encode for exact cuts (or because the format needs it).
         cmd = [ffmpeg_path, "-y", "-i", src_path, "-ss", str(start)]
         if end is not None:
             cmd += ["-to", str(end)]

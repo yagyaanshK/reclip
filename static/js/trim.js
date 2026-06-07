@@ -182,14 +182,28 @@
     const url = URL.createObjectURL(src.file);
     await ws.load(url);
 
-    ws.on('ready', () => {
-      state.duration = ws.getDuration();
-      els.fileDuration.textContent = fmt(state.duration);
-      els.endTime.value = fmt(state.duration);
+    const applyDuration = () => {
+      let d = ws.getDuration();
+      // Raw AAC files often report 0 from getDuration() — fall back to the decoded buffer.
+      if (!isFinite(d) || d <= 0) {
+        try {
+          const decoded = ws.getDecodedData();
+          if (decoded && isFinite(decoded.duration) && decoded.duration > 0) {
+            d = decoded.duration;
+          }
+        } catch (_) {}
+      }
+      state.duration = d > 0 ? d : 0;
+      els.fileDuration.textContent = state.duration > 0 ? fmt(state.duration) : '—';
+      if (state.duration > 0) {
+        els.endTime.value = fmt(state.duration);
+        ensureRegion(0, state.duration);
+      }
       els.startTime.value = '0:00';
-      ensureRegion(0, state.duration);
       updateCurrentTime(0);
-    });
+    };
+    ws.on('ready', applyDuration);
+    ws.on('decode', applyDuration);
     ws.on('audioprocess', (t) => updateCurrentTime(t));
     ws.on('seeking', (t) => updateCurrentTime(t));
     ws.on('finish', () => setPlayIcon(false));
@@ -324,21 +338,27 @@
     return await r.blob();
   }
 
-  // ---------------- ffmpeg.wasm path ----------------
+  // ---------------- ffmpeg.wasm path (0.11.6 — simpler, more reliable than 0.12) ----------------
   async function ensureFfmpegWasm() {
     if (state.ffmpegWasm) return state.ffmpegWasm;
+    if (!window.FFmpeg) {
+      throw new Error('ffmpeg.wasm script failed to load. Check your network connection.');
+    }
     setStatus('Loading ffmpeg.wasm (~25 MB, first time only)…', 'info');
-    // Lazy-load both the core helper and the ffmpeg module from CDN as ES modules.
-    const [{ FFmpeg }, { fetchFile, toBlobURL }] = await Promise.all([
-      import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js'),
-      import('https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js'),
-    ]);
-    const ffmpeg = new FFmpeg();
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+
+    const { createFFmpeg, fetchFile } = window.FFmpeg;
+    const ffmpeg = createFFmpeg({
+      log: false,
+      corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
     });
+
+    // Fail fast if load hangs (cross-origin worker stalls happen otherwise).
+    const loadPromise = ffmpeg.load();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('ffmpeg.wasm load timed out after 90s. Try refreshing.')), 90000)
+    );
+    await Promise.race([loadPromise, timeoutPromise]);
+
     state.ffmpegWasm = { ffmpeg, fetchFile };
     return state.ffmpegWasm;
   }
@@ -348,19 +368,17 @@
     const ext = inferExt(file.name).replace('.', '') || 'aac';
     const inName = `in.${ext}`;
     const outName = `out.${ext}`;
-    await ffmpeg.writeFile(inName, await fetchFile(file));
+    ffmpeg.FS('writeFile', inName, await fetchFile(file));
 
     const args = mode === 'copy'
-      ? ['-y', '-ss', String(start), '-to', String(end), '-i', inName, '-c', 'copy', outName]
-      : ['-y', '-i', inName, '-ss', String(start), '-to', String(end), '-c:a', 'aac', '-b:a', '192k', outName];
+      ? ['-ss', String(start), '-to', String(end), '-i', inName, '-c', 'copy', outName]
+      : ['-i', inName, '-ss', String(start), '-to', String(end), '-c:a', 'aac', '-b:a', '192k', outName];
 
     setStatus('Trimming in your browser…', 'info');
-    const code = await ffmpeg.exec(args);
-    if (code !== 0) throw new Error('ffmpeg.wasm reported an error');
-
-    const data = await ffmpeg.readFile(outName);
-    try { await ffmpeg.deleteFile(inName); } catch (_) {}
-    try { await ffmpeg.deleteFile(outName); } catch (_) {}
+    await ffmpeg.run(...args);
+    const data = ffmpeg.FS('readFile', outName);
+    try { ffmpeg.FS('unlink', inName); } catch (_) {}
+    try { ffmpeg.FS('unlink', outName); } catch (_) {}
 
     const mime = ext === 'aac' || ext === 'm4a' ? 'audio/aac'
                : ext === 'mp3' ? 'audio/mpeg'

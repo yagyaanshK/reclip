@@ -325,7 +325,12 @@ def trim_audio():
     out_ext = ext if ext else ".aac"
     out_path = os.path.join(DOWNLOAD_DIR, f"trim_out_{trim_id}{out_ext}")
 
-    if mode == "copy":
+    # Raw .aac has no timestamps → `-c copy` with -ss/-to silently produces a
+    # 0-byte file. Force re-encode for .aac regardless of mode.
+    must_reencode = ext == ".aac"
+    use_copy = mode == "copy" and not must_reencode
+
+    if use_copy:
         cmd = ["ffmpeg", "-y", "-ss", str(start)]
         if end is not None:
             cmd += ["-to", str(end)]

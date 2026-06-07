@@ -29,6 +29,8 @@
     fileName: $('file-name'),
     fileDuration: $('file-duration'),
     waveform: $('waveform'),
+    waveformOverlay: $('waveform-overlay'),
+    waveformOverlayText: $('waveform-overlay-text'),
     playBtn: $('play-btn'),
     iconPlay: $('icon-play'),
     iconPause: $('icon-pause'),
@@ -71,19 +73,57 @@
   }
   function clearStatus() { setStatus('', null); els.status.classList.add('hidden'); }
 
-  // Reliable duration detection via Web Audio API. Works on raw AAC files
-  // where WaveSurfer's getDuration()/getDecodedData() may return 0.
-  async function detectDurationFromFile(file) {
-    const AudioCtxCls = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtxCls) return 0;
-    const ctx = new AudioCtxCls();
-    try {
-      const buf = await file.arrayBuffer();
-      const audioBuf = await ctx.decodeAudioData(buf.slice(0));
-      return audioBuf.duration || 0;
-    } finally {
-      try { await ctx.close(); } catch (_) {}
-    }
+  // Overlay over the waveform area (shows spinner + status while loading).
+  function showOverlay(text) {
+    if (text) els.waveformOverlayText.textContent = text;
+    els.waveformOverlay.classList.remove('hidden');
+  }
+  function hideOverlay() {
+    els.waveformOverlay.classList.add('hidden');
+  }
+
+  // Reliable duration detection via HTML5 <audio> element. For raw .aac files
+  // that report Infinity initially, seek to the end to force the browser to
+  // scan the stream and report the real duration. This is the standard trick.
+  function detectDurationFromAudio(file) {
+    return new Promise((resolve) => {
+      const audio = new Audio();
+      const url = URL.createObjectURL(file);
+      audio.preload = 'metadata';
+      audio.src = url;
+
+      let resolved = false;
+      const done = (d) => {
+        if (resolved) return;
+        resolved = true;
+        try { audio.pause(); } catch (_) {}
+        audio.removeAttribute('src');
+        try { audio.load(); } catch (_) {}
+        URL.revokeObjectURL(url);
+        resolve(isFinite(d) && d > 0 ? d : 0);
+      };
+      const timeout = setTimeout(() => done(0), 15000);
+
+      audio.addEventListener('loadedmetadata', () => {
+        if (audio.duration === Infinity || isNaN(audio.duration)) {
+          // Seek to a very large time to force the browser to scan the file.
+          audio.currentTime = 1e100;
+          audio.addEventListener('timeupdate', function once() {
+            audio.removeEventListener('timeupdate', once);
+            clearTimeout(timeout);
+            done(audio.duration);
+          });
+        } else {
+          clearTimeout(timeout);
+          done(audio.duration);
+        }
+      });
+
+      audio.addEventListener('error', () => {
+        clearTimeout(timeout);
+        done(0);
+      });
+    });
   }
 
   // ---------------- Capabilities ----------------
@@ -171,7 +211,8 @@
     els.fileName.textContent = src.name;
     els.fileDuration.textContent = '…';
     els.panel.classList.remove('hidden');
-    setStatus('Loading audio…', 'info');
+    clearStatus();
+    showOverlay('Loading audio…');
 
     // Tear down any previous wavesurfer instance to avoid leaks.
     if (state.wavesurfer) {
@@ -197,19 +238,17 @@
     state.regions = regionsPlugin;
 
     ws.on('loading', (percent) => {
-      if (state.duration === 0) {
-        setStatus(`Reading file… ${percent | 0}%`, 'info');
-      }
+      showOverlay(`Reading file… ${percent | 0}%`);
     });
 
     const url = URL.createObjectURL(src.file);
     ws.load(url).catch((err) => {
+      hideOverlay();
       setStatus(`Failed to load audio: ${err.message || err}`, 'error');
     });
 
     const applyDuration = () => {
       let d = ws.getDuration();
-      // Raw AAC files often report 0 from getDuration() — fall back to the decoded buffer.
       if (!isFinite(d) || d <= 0) {
         try {
           const decoded = ws.getDecodedData();
@@ -218,35 +257,42 @@
           }
         } catch (_) {}
       }
-      // Latch: never overwrite a known-good duration with 0 from a later event.
+      // Latch: never overwrite a known-good duration with 0.
       if (d > 0 && d > state.duration) {
         state.duration = d;
         els.fileDuration.textContent = fmt(state.duration);
         els.endTime.value = fmt(state.duration);
         ensureRegion(0, state.duration);
         updateCurrentTime(ws.getCurrentTime() || 0);
-        clearStatus();
       }
     };
-    ws.on('ready', applyDuration);
+    ws.on('ready', () => { applyDuration(); hideOverlay(); });
     ws.on('decode', applyDuration);
     ws.on('audioprocess', (t) => updateCurrentTime(t));
     ws.on('seeking', (t) => updateCurrentTime(t));
 
-    // Parallel path: decode via Web Audio API directly for reliable duration on raw AAC.
-    detectDurationFromFile(src.file).then(d => {
+    // Parallel: HTML5 audio element gives reliable duration even for raw AAC.
+    detectDurationFromAudio(src.file).then(d => {
       if (d > 0 && d > state.duration) {
         state.duration = d;
         els.fileDuration.textContent = fmt(state.duration);
         els.endTime.value = fmt(state.duration);
         ensureRegion(0, state.duration);
         updateCurrentTime(ws.getCurrentTime() || 0);
-        clearStatus();
       }
     }).catch(() => {});
+
     ws.on('finish', () => setPlayIcon(false));
     ws.on('play', () => setPlayIcon(true));
     ws.on('pause', () => setPlayIcon(false));
+
+    // Safety: if 'ready' never fires (visual decode failed for an unusual file),
+    // hide the overlay after 25s so the user can still trim using time inputs.
+    setTimeout(() => {
+      if (!els.waveformOverlay.classList.contains('hidden')) {
+        hideOverlay();
+      }
+    }, 25000);
   }
 
   function ensureRegion(start, end) {
@@ -408,13 +454,39 @@
     const outName = `out.${ext}`;
     ffmpeg.FS('writeFile', inName, await fetchFile(file));
 
-    const args = mode === 'copy'
-      ? ['-ss', String(start), '-to', String(end), '-i', inName, '-c', 'copy', outName]
-      : ['-i', inName, '-ss', String(start), '-to', String(end), '-c:a', 'aac', '-b:a', '192k', outName];
+    // Raw .aac streams have no timestamps, so `-c copy` with -ss/-to silently
+    // produces a 0-byte file. Force re-encode for .aac regardless of mode.
+    // M4A, MP3, WAV, OGG, FLAC have proper timestamps and copy works.
+    const mustReencode = ext === 'aac';
+    const useCopy = mode === 'copy' && !mustReencode;
 
-    setStatus('Trimming in your browser…', 'info');
+    let args;
+    if (useCopy) {
+      args = ['-ss', String(start), '-to', String(end), '-i', inName, '-c', 'copy', outName];
+    } else {
+      const codec = (ext === 'aac' || ext === 'm4a') ? 'aac'
+                  : ext === 'mp3' ? 'libmp3lame'
+                  : ext === 'ogg' ? 'libvorbis'
+                  : ext === 'wav' ? 'pcm_s16le'
+                  : ext === 'flac' ? 'flac'
+                  : 'aac';
+      args = ['-i', inName, '-ss', String(start), '-to', String(end), '-c:a', codec];
+      if (codec !== 'pcm_s16le' && codec !== 'flac') args.push('-b:a', '192k');
+      args.push(outName);
+    }
+
+    setStatus(mustReencode && mode === 'copy'
+      ? 'Trimming (raw AAC requires re-encode)…'
+      : 'Trimming in your browser…', 'info');
     await ffmpeg.run(...args);
     const data = ffmpeg.FS('readFile', outName);
+
+    if (!data || data.byteLength === 0) {
+      try { ffmpeg.FS('unlink', inName); } catch (_) {}
+      try { ffmpeg.FS('unlink', outName); } catch (_) {}
+      throw new Error('ffmpeg produced an empty file. Try Precise (re-encode) mode.');
+    }
+
     try { ffmpeg.FS('unlink', inName); } catch (_) {}
     try { ffmpeg.FS('unlink', outName); } catch (_) {}
 

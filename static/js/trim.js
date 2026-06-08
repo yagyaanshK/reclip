@@ -238,7 +238,11 @@
     state.regions = regionsPlugin;
 
     ws.on('loading', (percent) => {
-      showOverlay(`Reading file… ${percent | 0}%`);
+      if (percent < 100) {
+        showOverlay(`Reading file… ${percent | 0}%`);
+      } else {
+        showOverlay('Decoding audio… (large files may take a moment)');
+      }
     });
 
     const url = URL.createObjectURL(src.file);
@@ -267,7 +271,7 @@
       }
     };
     ws.on('ready', () => { applyDuration(); hideOverlay(); });
-    ws.on('decode', applyDuration);
+    ws.on('decode', () => { applyDuration(); showOverlay('Drawing waveform…'); });
     ws.on('audioprocess', (t) => updateCurrentTime(t));
     ws.on('seeking', (t) => updateCurrentTime(t));
 
@@ -287,12 +291,13 @@
     ws.on('pause', () => setPlayIcon(false));
 
     // Safety: if 'ready' never fires (visual decode failed for an unusual file),
-    // hide the overlay after 25s so the user can still trim using time inputs.
+    // hide the overlay so the user can still trim using time inputs. 90s covers
+    // very long files (hours-long AAC takes a while to decode).
     setTimeout(() => {
       if (!els.waveformOverlay.classList.contains('hidden')) {
         hideOverlay();
       }
-    }, 25000);
+    }, 90000);
   }
 
   function ensureRegion(start, end) {

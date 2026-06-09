@@ -18,3 +18,10 @@ icons/
 *.zip
 PENDING_TASKS.md
 METADATA_FINDINGS.md
+
+# Briefcase / BeeWare mobile build artifacts
+mobile/beeware/.briefcase/
+mobile/beeware/venv/
+mobile/beeware/build/
+mobile/beeware/dist/
+mobile/beeware/src/*.dist-info/

@@ -16,7 +16,8 @@ project_name = "ReClip"
 bundle = "com.yagyaansh"
 version = "0.1.0"
 url = "https://github.com/yagyaanshK/reclip"
-license.file = "../../LICENSE"
+license = "MIT"
+license-files = ["../../LICENSE"]
 author = "yagyaanshK"
 author_email = "akhepar@asu.edu"
 

@@ -25,3 +25,4 @@ mobile/beeware/venv/
 mobile/beeware/build/
 mobile/beeware/dist/
 mobile/beeware/src/*.dist-info/
+mobile/beeware/logs/

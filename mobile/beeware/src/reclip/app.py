@@ -88,7 +88,7 @@ class ReClipApp(toga.App):
                 title,
                 subtitle,
                 self.url_input,
-                self.format_mp4,
+                self.audio_switch,
                 self.fetch_button,
                 self.info_label,
                 self.download_button,

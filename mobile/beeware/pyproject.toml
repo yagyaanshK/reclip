@@ -44,7 +44,9 @@ requires = [
 # -----------------------------------------------------------------------------
 [tool.briefcase.app.reclip.android]
 # Briefcase's Android backend wraps Chaquopy, which embeds CPython on-device.
-requires = []
+requires = [
+    "toga-android>=0.4.4",
+]
 
 base_theme = "Theme.AppCompat.Light.NoActionBar"
 
@@ -59,7 +61,9 @@ build_gradle_dependencies = [
 # iOS (deferred — placeholder so the project file is complete)
 # -----------------------------------------------------------------------------
 [tool.briefcase.app.reclip.iOS]
-requires = []
+requires = [
+    "toga-iOS>=0.4.4",
+]
 
 # -----------------------------------------------------------------------------
 # Desktop targets (not the primary use case; the main desktop build is the

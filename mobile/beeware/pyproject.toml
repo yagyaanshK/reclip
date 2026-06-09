@@ -1,0 +1,75 @@
+# ReClip Mobile — BeeWare / Briefcase project file.
+#
+# Build (from this directory):
+#   briefcase create android
+#   briefcase build android
+#   briefcase run android      # on emulator or attached device
+#   briefcase package android  # produces release APK / AAB
+#
+# See ../FRAMEWORK_DECISION.md for why BeeWare.
+
+[build-system]
+requires = ["briefcase"]
+
+[tool.briefcase]
+project_name = "ReClip"
+bundle = "com.yagyaansh"
+version = "0.1.0"
+url = "https://github.com/yagyaanshK/reclip"
+license.file = "../../LICENSE"
+author = "yagyaanshK"
+author_email = "akhepar@asu.edu"
+
+[tool.briefcase.app.reclip]
+formal_name = "ReClip"
+description = "Self-hosted video and audio downloader (yt-dlp powered)."
+long_description = """
+ReClip is a mobile front-end for yt-dlp. Paste a link from YouTube, TikTok,
+Instagram, Twitter/X, and 1000+ other sites and download as MP4 or MP3 —
+all on-device, no backend.
+"""
+sources = ["src/reclip"]
+test_sources = []
+
+# Runtime requirements common to all targets.
+requires = [
+    "yt-dlp>=2024.10.7",
+    "yt-dlp-ejs",
+    "pycryptodomex",
+]
+
+# -----------------------------------------------------------------------------
+# Android
+# -----------------------------------------------------------------------------
+[tool.briefcase.app.reclip.android]
+# Briefcase's Android backend wraps Chaquopy, which embeds CPython on-device.
+requires = []
+
+base_theme = "Theme.AppCompat.Light.NoActionBar"
+
+build_gradle_dependencies = [
+    "androidx.appcompat:appcompat:1.6.1",
+    "com.google.android.material:material:1.11.0",
+    "androidx.constraintlayout:constraintlayout:2.1.4",
+    "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
+]
+
+# -----------------------------------------------------------------------------
+# iOS (deferred — placeholder so the project file is complete)
+# -----------------------------------------------------------------------------
+[tool.briefcase.app.reclip.iOS]
+requires = []
+
+# -----------------------------------------------------------------------------
+# Desktop targets (not the primary use case; the main desktop build is the
+# PyInstaller pipeline at repo root. These exist so `briefcase dev` works for
+# local UI iteration.)
+# -----------------------------------------------------------------------------
+[tool.briefcase.app.reclip.macOS]
+requires = ["toga-cocoa>=0.4.4"]
+
+[tool.briefcase.app.reclip.linux]
+requires = ["toga-gtk>=0.4.4"]
+
+[tool.briefcase.app.reclip.windows]
+requires = ["toga-winforms>=0.4.4"]

@@ -4,6 +4,7 @@ import uuid
 import glob
 import json
 import math
+import re
 import subprocess
 import threading
 from flask import Flask, request, jsonify, send_file, render_template
@@ -30,6 +31,17 @@ DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 jobs = {}
+
+
+def _log_yt_dlp_timeout(operation, exc):
+    """Log bounded extractor progress without retaining a full command or response."""
+    output = exc.stderr or exc.stdout or ""
+    if isinstance(output, bytes):
+        output = output.decode("utf-8", errors="replace")
+    lines = [line.strip() for line in output.splitlines() if line.strip()][-8:]
+    sanitized = [re.sub(r"https?://\S+", "[url]", line) for line in lines]
+    detail = " | ".join(sanitized) or "no extractor progress was emitted"
+    print(f"yt-dlp {operation} timed out: {detail}", flush=True)
 
 
 def _parse_clip_time(value):
@@ -229,7 +241,8 @@ def run_download(
             job["filename"] = f"{safe_name}{ext}" if safe_name else os.path.basename(chosen)
         else:
             job["filename"] = os.path.basename(chosen)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
+        _log_yt_dlp_timeout("download", exc)
         job["status"] = "error"
         job["error"] = "Download timed out (5 min limit)"
     except Exception as e:
@@ -316,7 +329,8 @@ def get_info():
             "formats": formats,
             "audioFormats": audio_formats,
         })
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
+        _log_yt_dlp_timeout("metadata fetch", exc)
         return jsonify({"error": "Timed out fetching video info"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 400

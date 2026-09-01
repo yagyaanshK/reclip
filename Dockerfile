@@ -14,13 +14,13 @@ RUN deno install --allow-scripts=npm:canvas --frozen
 FROM python:3.12-slim
 
 COPY --from=deno /deno /usr/local/bin/deno
-COPY --from=pot-builder /opt/bgutil /opt/bgutil
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -u 1000 appuser
+COPY --from=pot-builder --chown=appuser:appuser /opt/bgutil /opt/bgutil
 
 WORKDIR /app
 COPY requirements.txt .

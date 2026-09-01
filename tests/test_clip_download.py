@@ -72,6 +72,12 @@ class ClipCommandTests(unittest.TestCase):
         self.assertNotIn("--force-keyframes-at-cuts", command)
 
 
+class ExtractorErrorTests(unittest.TestCase):
+    def test_extracts_error_before_verbose_traceback(self):
+        stderr = "debug\nERROR: [youtube] blocked\nTraceback\nraise ExtractorError"
+        self.assertEqual(reclip._yt_dlp_error_message(stderr), "[youtube] blocked")
+
+
 class ClipDownloadApiTests(unittest.TestCase):
     def setUp(self):
         reclip.app.config.update(TESTING=True)

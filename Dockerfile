@@ -28,11 +28,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=appuser:appuser . .
 
-RUN mkdir -p /app/downloads && chown appuser:appuser /app/downloads
+RUN mkdir -p /app/downloads /home/appuser/.cache/bgutil-ytdlp-pot-provider && \
+    chown -R appuser:appuser /app/downloads /home/appuser/.cache
 
 EXPOSE 7860
 ENV HOST=0.0.0.0
 ENV PORT=7860
 ENV RECLIP_TRIM_BACKEND=disabled
 USER appuser
+RUN deno run \
+      --allow-env --allow-net \
+      --allow-ffi=/opt/bgutil/server/node_modules \
+      --allow-write=/home/appuser/.cache/bgutil-ytdlp-pot-provider \
+      --allow-read=/home/appuser/.cache/bgutil-ytdlp-pot-provider,/opt/bgutil/server/node_modules \
+      /opt/bgutil/server/src/generate_once.ts --version
 CMD ["gunicorn", "--bind", "0.0.0.0:7860", "--workers", "1", "--threads", "4", "--timeout", "360", "app:app"]

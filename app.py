@@ -38,6 +38,17 @@ DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 jobs = {}
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def _yt_dlp_error_message(output, fallback="yt-dlp failed"):
+    if isinstance(output, bytes):
+        output = output.decode("utf-8", errors="replace")
+    lines = [ANSI_ESCAPE.sub("", line).strip() for line in (output or "").splitlines()]
+    for line in reversed(lines):
+        if line.startswith("ERROR:"):
+            return line.removeprefix("ERROR:").strip()
+    return next((line for line in reversed(lines) if line), fallback)
 
 
 def _log_yt_dlp_failure(operation, output):
@@ -45,7 +56,10 @@ def _log_yt_dlp_failure(operation, output):
     if isinstance(output, bytes):
         output = output.decode("utf-8", errors="replace")
     lines = [line.strip() for line in output.splitlines() if line.strip()]
-    diagnostic_terms = ("[pot]", "provider", "impersonat", "player client", "token")
+    diagnostic_terms = (
+        "[pot]", "provider", "impersonat", "player client", "token",
+        "script", "deno", "runtime",
+    )
     selected = [line for line in lines if any(term in line.lower() for term in diagnostic_terms)]
     selected.extend(lines[-8:])
     lines = list(dict.fromkeys(selected))[-20:]
@@ -201,7 +215,7 @@ def run_download(
         if result.returncode != 0:
             _log_yt_dlp_failure("download", result.stderr)
             job["status"] = "error"
-            job["error"] = result.stderr.strip().split("\n")[-1]
+            job["error"] = _yt_dlp_error_message(result.stderr)
             return
 
         files = glob.glob(os.path.join(DOWNLOAD_DIR, f"{job_id}.*"))
@@ -293,7 +307,7 @@ def get_info():
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         if result.returncode != 0:
             _log_yt_dlp_failure("metadata fetch", result.stderr)
-            return jsonify({"error": result.stderr.strip().split("\n")[-1]}), 400
+            return jsonify({"error": _yt_dlp_error_message(result.stderr)}), 400
 
         info = json.loads(result.stdout)
 

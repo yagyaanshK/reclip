@@ -26,6 +26,7 @@ https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
 - Download videos from 1000+ supported sites (via [yt-dlp](https://github.com/yt-dlp/yt-dlp))
 - MP4 video or MP3 audio extraction
 - Quality/resolution picker
+- Download precise clips by start/end time without first storing the full source
 - Bulk downloads — paste multiple URLs at once
 - Automatic URL deduplication
 - Clean, responsive UI — no frameworks, no build step
@@ -56,7 +57,8 @@ docker build -t reclip . && docker run -p 8899:8899 reclip
 2. Choose **MP4** (video) or **MP3** (audio)
 3. Click **Fetch** to load video info and thumbnails
 4. Select quality/resolution if available
-5. Click **Download** on individual videos, or **Download All**
+5. Optionally enable **Clip** and enter start/end times as `SS`, `MM:SS`, or `HH:MM:SS.000`
+6. Click **Download** on individual videos, or **Download All**
 
 ## Supported Sites
 

@@ -1,57 +1,46 @@
-# Changes from Original Repository
+# Changes from the Original Repository
 
-This fork ([yagyaanshK/reclip](https://github.com/yagyaanshK/reclip)) is based on [averygan/reclip](https://github.com/averygan/reclip) and has been modified for deployment on **Hugging Face Spaces**.
+This branch is the hosted edition of [yagyaanshK/reclip](https://github.com/yagyaanshK/reclip), forked from [averygan/reclip](https://github.com/averygan/reclip).
 
 Live deployment: https://huggingface.co/spaces/Daddy23/reclip
 
----
+## Hosted Deployment
 
-## Modified Files
+- Added Hugging Face Spaces Docker metadata to `README.md`.
+- Changed the service port to Hugging Face's required port `7860`.
+- Runs the app as the non-root `appuser` (UID 1000).
+- Runs Flask through a single Gunicorn worker with four threads so in-memory download jobs remain available while requests are handled concurrently.
+- Bundles FFmpeg, Deno, `yt-dlp-ejs`, and `curl_cffi` for current extractor, JavaScript challenge, media-processing, and browser-impersonation support.
+- Uses the container's managed DNS configuration instead of replacing `/etc/resolv.conf`.
+- Uses bounded IPv4 network retries and socket timeouts so blocked upstream requests fail clearly instead of hanging indefinitely.
+- Keeps backend audio trimming disabled on the hosted instance; `/trim` performs trimming in the browser with `ffmpeg.wasm`.
 
-### `Dockerfile`
-- Added non-root user `appuser` (UID 1000) — required by HF Spaces security policy
-- Created `/app/downloads` directory with correct ownership for `appuser`
-- Switched container to run as `appuser` via `USER appuser`
-- Changed exposed port from `8899` to `7860` (HF Spaces default)
-- Added `ENV PORT=7860` environment variable
+## Download Features
 
-### `app.py`
-- Changed default port fallback from `8899` to `7860` (line 169)
+- Generates useful filenames from artist/track or uploader/title metadata.
+- Adds MP4 video codec and audio codec controls.
+- Adds precise per-item clip downloads for video and audio.
+- Accepts clip times as seconds, `MM:SS`, or `HH:MM:SS` with millisecond precision.
+- Uses yt-dlp source sections plus FFmpeg keyframe correction, avoiding a full source file before cutting where the upstream site supports ranged delivery.
+- Improves filename length handling and codec-specific quality selection.
 
-### `README.md`
-- Added HF Spaces YAML frontmatter:
-  - `sdk: docker`
-  - `app_port: 7860`
-  - `license: mit`
-  - `short_description`, `emoji`, `colorFrom`, `colorTo`, `pinned`
+## Hosted Interface
 
-### `.gitignore`
-- Added `.hf_token` to prevent accidentally committing the Hugging Face access token
+- Adds a desktop-download menu for Windows, macOS, and Linux builds.
+- Adds automatic light/dark mode controls and hosted responsive fixes.
+- Adds the browser-based `/trim` audio editor with waveform, duration, loading, and AAC fixes.
+- Adds the cross-origin isolation headers required by `ffmpeg.wasm`.
+- Adds `robots.txt` and `llms.txt` routes and hosted-only static files.
 
-## New Files
+## Repository Files
 
-### `entrypoint.sh`
-- Entrypoint script that sets DNS servers (Google `8.8.8.8`, Cloudflare `1.1.1.1`) at container startup
-- Fixes DNS resolution failure (`Errno -5`) that occurs inside HF Spaces Docker containers when `yt-dlp` tries to reach external sites like YouTube
+- `Dockerfile`: Hugging Face runtime and production server configuration.
+- `requirements.txt`: hosted Python and extractor dependencies.
+- `templates/index.html`: hosted downloader controls and desktop app links.
+- `templates/trim.html`: client-side audio trimming interface.
+- `static/robots.txt`: crawler policy for the hosted site.
+- `static/llms.txt`: concise public description for AI agents and search tools.
+- `.gitignore`: excludes local credentials, deployment notes, downloads, and build output.
+- `tests/test_clip_download.py`: clip parsing, validation, command, and API coverage.
 
-### `.hf_token` (gitignored)
-- Local-only file storing the Hugging Face access token for pushing to the Space
-
-### `CHANGES.md`
-- This file
-
-## Removed Files
-
-### `assets/preview-mp3.png` and `assets/preview.mp4`
-- Removed from the HF Spaces deployment branch (`hf-deploy`) only
-- HF Spaces rejects pushes containing binary files
-- These are README demo assets and not needed for the app to function
-
----
-
-## Summary
-
-We have heavily enhanced this fork from the original repository:
-1. **Intelligent Filenames**: Extracts `Artist` and `Track` to generate proper MP3 filenames, or `Channel` and `Title` for MP4s.
-2. **Anti-Bot Engine**: Bundled `yt-dlp-ejs` and `pycryptodomex` to bypass YouTube's aggressive bot-detection and JS challenges natively.
-3. **HF Spaces Optimization**: Fully re-configured the Docker environment and network stack (DNS forced to Cloudflare) to ensure Hugging Face deployment stability.
+The README preview binaries from the original repository are omitted from this branch because they are not required at runtime.

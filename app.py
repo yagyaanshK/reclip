@@ -1,10 +1,29 @@
 import os
+import sys
 import uuid
 import glob
 import json
+import math
 import subprocess
 import threading
 from flask import Flask, request, jsonify, send_file, render_template
+
+YT_DLP_CMD = [
+    sys.executable,
+    "-m",
+    "yt_dlp",
+    "--force-ipv4",
+    "--socket-timeout",
+    "20",
+    "--retries",
+    "2",
+    "--fragment-retries",
+    "2",
+    "--extractor-retries",
+    "2",
+    "--js-runtimes",
+    "deno",
+]
 
 app = Flask(__name__)
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "downloads")
@@ -13,22 +32,88 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 jobs = {}
 
 
-@app.after_request
-def add_security_headers(response):
-    # Required for ffmpeg.wasm on /trim — needs SharedArrayBuffer,
-    # which is only available in cross-origin isolated contexts.
-    # `credentialless` is the most permissive — cross-origin resources
-    # (Google Fonts, unpkg) load without credentials and don't need CORP headers.
-    response.headers.setdefault('Cross-Origin-Opener-Policy', 'same-origin')
-    response.headers.setdefault('Cross-Origin-Embedder-Policy', 'credentialless')
-    return response
+def _parse_clip_time(value):
+    """Parse SS, MM:SS, or HH:MM:SS timestamps with optional decimals."""
+    if value is None:
+        raise ValueError("Clip start and end times are required")
+
+    text = str(value).strip()
+    if not text:
+        raise ValueError("Clip start and end times are required")
+
+    parts = text.split(":")
+    if len(parts) > 3 or any(not part for part in parts):
+        raise ValueError("Use SS, MM:SS, or HH:MM:SS")
+
+    if any(not part.replace(".", "", 1).isdigit() for part in parts):
+        raise ValueError("Use SS, MM:SS, or HH:MM:SS")
+    numbers = [float(part) for part in parts]
+
+    if any(not math.isfinite(number) or number < 0 for number in numbers):
+        raise ValueError("Clip times cannot be negative")
+    if len(parts) >= 2 and numbers[-1] >= 60:
+        raise ValueError("Seconds must be less than 60")
+    if len(parts) == 3 and numbers[-2] >= 60:
+        raise ValueError("Minutes must be less than 60")
+
+    total = 0.0
+    for number in numbers:
+        total = total * 60 + number
+    return total
 
 
-def run_download(job_id, url, format_choice, format_id, audio_codec="mp3", video_codec="mp4"):
-    job = jobs[job_id]
-    out_template = os.path.join(DOWNLOAD_DIR, f"{job_id}.%(ext)s")
+def _validate_clip_range(start_value, end_value, duration=None):
+    """Return validated clip bounds in seconds, or (None, None) when unused."""
+    start_missing = start_value is None or str(start_value).strip() == ""
+    end_missing = end_value is None or str(end_value).strip() == ""
+    if start_missing and end_missing:
+        return None, None
+    if start_missing or end_missing:
+        raise ValueError("Enter both clip start and end times")
 
-    cmd = ["yt-dlp", "--no-playlist", "-o", out_template]
+    start = _parse_clip_time(start_value)
+    end = _parse_clip_time(end_value)
+    if end <= start:
+        raise ValueError("Clip end must be after clip start")
+
+    if duration not in (None, ""):
+        try:
+            source_duration = float(duration)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid source duration") from exc
+        if not math.isfinite(source_duration):
+            raise ValueError("Invalid source duration")
+        if source_duration > 0 and end > source_duration + 0.001:
+            raise ValueError("Clip end is beyond the source duration")
+
+    return start, end
+
+
+def _format_section_time(seconds):
+    return f"{seconds:.3f}".rstrip("0").rstrip(".")
+
+
+def _format_filename_time(seconds):
+    total_milliseconds = round(seconds * 1000)
+    total_seconds, milliseconds = divmod(total_milliseconds, 1000)
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, whole_seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours:02d}-{minutes:02d}-{whole_seconds:02d}.{milliseconds:03d}"
+    return f"{minutes:02d}-{whole_seconds:02d}.{milliseconds:03d}"
+
+
+def _build_download_command(
+    out_template,
+    url,
+    format_choice,
+    format_id,
+    audio_codec="mp3",
+    video_codec="mp4",
+    clip_start=None,
+    clip_end=None,
+):
+    cmd = YT_DLP_CMD + ["--no-playlist", "-o", out_template]
 
     if format_choice == "audio":
         if format_id:
@@ -42,7 +127,47 @@ def run_download(job_id, url, format_choice, format_id, audio_codec="mp3", video
     else:
         cmd += ["-f", "bestvideo+bestaudio/best", "--merge-output-format", video_codec]
 
+    if clip_start is not None and clip_end is not None:
+        section = f"*{_format_section_time(clip_start)}-{_format_section_time(clip_end)}"
+        cmd += ["--download-sections", section, "--force-keyframes-at-cuts"]
+
     cmd.append(url)
+    return cmd
+
+
+@app.after_request
+def add_security_headers(response):
+    # Required for ffmpeg.wasm on /trim — needs SharedArrayBuffer,
+    # which is only available in cross-origin isolated contexts.
+    # `credentialless` is the most permissive — cross-origin resources
+    # (Google Fonts, unpkg) load without credentials and don't need CORP headers.
+    response.headers.setdefault('Cross-Origin-Opener-Policy', 'same-origin')
+    response.headers.setdefault('Cross-Origin-Embedder-Policy', 'credentialless')
+    return response
+
+
+def run_download(
+    job_id,
+    url,
+    format_choice,
+    format_id,
+    audio_codec="mp3",
+    video_codec="mp4",
+    clip_start=None,
+    clip_end=None,
+):
+    job = jobs[job_id]
+    out_template = os.path.join(DOWNLOAD_DIR, f"{job_id}.%(ext)s")
+    cmd = _build_download_command(
+        out_template,
+        url,
+        format_choice,
+        format_id,
+        audio_codec,
+        video_codec,
+        clip_start,
+        clip_end,
+    )
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
@@ -91,8 +216,16 @@ def run_download(job_id, url, format_choice, format_id, audio_codec="mp3", video
         else:
             raw_name = title.strip()
             
-        if raw_name:
-            safe_name = "".join(c for c in raw_name if c not in r'\/:*?"<>|').strip()[:80].strip()
+        if raw_name or (clip_start is not None and clip_end is not None):
+            safe_base = "".join(c for c in raw_name if c not in r'\/:*?"<>|').strip() or "download"
+            clip_suffix = ""
+            if clip_start is not None and clip_end is not None:
+                clip_suffix = (
+                    f" - clip {_format_filename_time(clip_start)}"
+                    f" to {_format_filename_time(clip_end)}"
+                )
+            base_limit = max(1, 100 - len(clip_suffix))
+            safe_name = f"{safe_base[:base_limit].strip()}{clip_suffix}"
             job["filename"] = f"{safe_name}{ext}" if safe_name else os.path.basename(chosen)
         else:
             job["filename"] = os.path.basename(chosen)
@@ -126,7 +259,7 @@ def get_info():
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
-    cmd = ["yt-dlp", "--no-playlist", "-j", url]
+    cmd = YT_DLP_CMD + ["--no-playlist", "-j", url]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         if result.returncode != 0:
@@ -205,6 +338,15 @@ def start_download():
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
+    try:
+        clip_start, clip_end = _validate_clip_range(
+            data.get("clip_start"),
+            data.get("clip_end"),
+            data.get("duration"),
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
     job_id = uuid.uuid4().hex[:10]
     jobs[job_id] = {
         "status": "downloading", 
@@ -215,10 +357,24 @@ def start_download():
         "uploader": uploader,
         "format_choice": format_choice,
         "audio_codec": audio_codec,
-        "video_codec": video_codec
+        "video_codec": video_codec,
+        "clip_start": clip_start,
+        "clip_end": clip_end,
     }
 
-    thread = threading.Thread(target=run_download, args=(job_id, url, format_choice, format_id, audio_codec, video_codec))
+    thread = threading.Thread(
+        target=run_download,
+        args=(
+            job_id,
+            url,
+            format_choice,
+            format_id,
+            audio_codec,
+            video_codec,
+            clip_start,
+            clip_end,
+        ),
+    )
     thread.daemon = True
     thread.start()
 

@@ -1,4 +1,6 @@
 flask
-yt-dlp
+yt-dlp>=2026.8.19
 yt-dlp-ejs
 pycryptodomex
+curl_cffi
+gunicorn

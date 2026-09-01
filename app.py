@@ -13,6 +13,7 @@ YT_DLP_CMD = [
     sys.executable,
     "-m",
     "yt_dlp",
+    "--verbose",
     "--force-ipv4",
     "--impersonate",
     "chrome",
@@ -39,15 +40,23 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 jobs = {}
 
 
-def _log_yt_dlp_timeout(operation, exc):
-    """Log bounded extractor progress without retaining a full command or response."""
-    output = exc.stderr or exc.stdout or ""
+def _log_yt_dlp_failure(operation, output):
+    """Log bounded extractor diagnostics without retaining full commands or responses."""
     if isinstance(output, bytes):
         output = output.decode("utf-8", errors="replace")
-    lines = [line.strip() for line in output.splitlines() if line.strip()][-8:]
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    diagnostic_terms = ("[pot]", "provider", "impersonat", "player client", "token")
+    selected = [line for line in lines if any(term in line.lower() for term in diagnostic_terms)]
+    selected.extend(lines[-8:])
+    lines = list(dict.fromkeys(selected))[-20:]
     sanitized = [re.sub(r"https?://\S+", "[url]", line) for line in lines]
     detail = " | ".join(sanitized) or "no extractor progress was emitted"
-    print(f"yt-dlp {operation} timed out: {detail}", flush=True)
+    print(f"yt-dlp {operation} failed: {detail}", flush=True)
+
+
+def _log_yt_dlp_timeout(operation, exc):
+    output = exc.stderr or exc.stdout or ""
+    _log_yt_dlp_failure(f"{operation} (timeout)", output)
 
 
 def _parse_clip_time(value):
@@ -190,6 +199,7 @@ def run_download(
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         if result.returncode != 0:
+            _log_yt_dlp_failure("download", result.stderr)
             job["status"] = "error"
             job["error"] = result.stderr.strip().split("\n")[-1]
             return
@@ -282,6 +292,7 @@ def get_info():
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         if result.returncode != 0:
+            _log_yt_dlp_failure("metadata fetch", result.stderr)
             return jsonify({"error": result.stderr.strip().split("\n")[-1]}), 400
 
         info = json.loads(result.stdout)

@@ -26,6 +26,10 @@ YT_DLP_CMD = [
     "2",
     "--js-runtimes",
     "deno",
+    "--extractor-args",
+    "youtube:player_client=mweb",
+    "--extractor-args",
+    "youtubepot-bgutilscript:server_home=/opt/bgutil/server",
 ]
 
 app = Flask(__name__)

@@ -1,8 +1,20 @@
 FROM denoland/deno:bin-2.9.6 AS deno
 
+FROM python:3.12-slim AS pot-builder
+
+COPY --from=deno /deno /usr/local/bin/deno
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates git && \
+    git clone --depth 1 --branch 1.3.1 \
+      https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /opt/bgutil && \
+    rm -rf /var/lib/apt/lists/* /opt/bgutil/.git
+WORKDIR /opt/bgutil/server
+RUN deno install --allow-scripts=npm:canvas --frozen
+
 FROM python:3.12-slim
 
 COPY --from=deno /deno /usr/local/bin/deno
+COPY --from=pot-builder /opt/bgutil /opt/bgutil
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates ffmpeg && \

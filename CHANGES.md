@@ -11,6 +11,7 @@ Live deployment: https://huggingface.co/spaces/Daddy23/reclip
 - Runs the app as the non-root `appuser` (UID 1000).
 - Runs Flask through a single Gunicorn worker with four threads so in-memory download jobs remain available while requests are handled concurrently.
 - Bundles FFmpeg, Deno, `yt-dlp-ejs`, and `curl_cffi` for current extractor, JavaScript challenge, media-processing, and browser-impersonation support.
+- Adds the pinned BgUtils PO-token provider and yt-dlp's `mweb` client for per-video YouTube attestation on hosted datacenter traffic.
 - Uses the container's managed DNS configuration instead of replacing `/etc/resolv.conf`.
 - Uses bounded IPv4 network retries and socket timeouts so blocked upstream requests fail clearly instead of hanging indefinitely.
 - Keeps backend audio trimming disabled on the hosted instance; `/trim` performs trimming in the browser with `ffmpeg.wasm`.

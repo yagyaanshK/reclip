@@ -14,6 +14,8 @@ YT_DLP_CMD = [
     "-m",
     "yt_dlp",
     "--force-ipv4",
+    "--impersonate",
+    "chrome",
     "--socket-timeout",
     "20",
     "--retries",

@@ -17,7 +17,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install build and test dependencies
-        run: python -m pip install --upgrade build .
+        run: python -m pip install --upgrade build flask .
       - name: Verify release versions
         run: |
           VERSION="${GITHUB_REF_NAME#mcp-v}"

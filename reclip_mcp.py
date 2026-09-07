@@ -16,7 +16,7 @@ from reclip_core import (
 
 mcp = MCPServer(
     name="ReClip",
-    version="0.1.0",
+    version="0.1.1",
     website_url="https://github.com/yagyaanshK/reclip",
     instructions=(
         "Use ReClip only when the user explicitly wants to inspect or download media they are "

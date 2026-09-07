@@ -1,11 +1,13 @@
 import json
 import tempfile
 import unittest
+import tomllib
 from pathlib import Path
 from unittest.mock import patch
 
 import reclip_cli
 import reclip_core
+import reclip_mcp
 
 
 class UrlValidationTests(unittest.TestCase):
@@ -73,6 +75,21 @@ class CoreOperationTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
+    def test_version_matches_package_and_registry_metadata(self):
+        root = Path(__file__).parent.parent
+        project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+        server = json.loads((root / "server.json").read_text(encoding="utf-8"))
+        version_action = next(
+            action
+            for action in reclip_cli.build_parser()._actions
+            if "--version" in action.option_strings
+        )
+
+        self.assertEqual(project["version"], server["version"])
+        self.assertEqual(project["version"], server["packages"][0]["version"])
+        self.assertIn(project["version"], version_action.version)
+        self.assertEqual(project["version"], reclip_mcp.mcp.version)
+
     @patch("reclip_cli.inspect_media")
     def test_json_inspect_contract(self, inspect):
         inspect.return_value = {"title": "Example"}

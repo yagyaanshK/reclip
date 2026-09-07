@@ -293,6 +293,16 @@ def llms():
     return send_file(os.path.join(app.static_folder, "llms.txt"), mimetype="text/plain")
 
 
+@app.route("/llms-full.txt")
+def llms_full():
+    return send_file(os.path.join(app.static_folder, "llms-full.txt"), mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap():
+    return send_file(os.path.join(app.static_folder, "sitemap.xml"), mimetype="application/xml")
+
+
 @app.route("/api/info", methods=["POST"])
 def get_info():
     data = request.json

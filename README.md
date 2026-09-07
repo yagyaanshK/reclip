@@ -7,12 +7,14 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: mit
-short_description: Download video & audio from YouTube, TikTok & more
+short_description: Download permitted media and precise clips
 ---
 
 # ReClip
 
-A self-hosted, open-source video and audio downloader with a clean web UI. Paste links from YouTube, TikTok, Instagram, Twitter/X, and 1000+ other sites — download as MP4 or MP3.
+A local-first, open-source interface for downloading permitted video and audio with yt-dlp. Select a quality, extract MP3 audio, or save only a precise time range.
+
+> **Hosted-service limitation:** YouTube rejects requests from this Hugging Face datacenter. Use the [local ReClip app](https://github.com/yagyaanshK/reclip) for YouTube. Availability for every source site can change as sites and yt-dlp extractors change.
 
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -23,22 +25,20 @@ https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
 
 ## Features
 
-- Download videos from 1000+ supported sites (via [yt-dlp](https://github.com/yt-dlp/yt-dlp))
+- Download from sites supported by the installed [yt-dlp](https://github.com/yt-dlp/yt-dlp) version
 - MP4 video or MP3 audio extraction
 - Quality/resolution picker
 - Download precise clips by start/end time without first storing the full source
 - Bulk downloads — paste multiple URLs at once
 - Automatic URL deduplication
 - Clean, responsive UI — no frameworks, no build step
-- Single Python file backend (~150 lines)
 - Intelligent Filename Generation — extracts and formats metadata gracefully (`Artist - Track.mp3` or `Channel - Title.mp4`).
-- Anti-Bot Bypassing — utilizes `yt-dlp-ejs` and `pycryptodomex` to natively solve JavaScript challenges (e.g., YouTube's "Sign in to confirm you're not a bot").
+- Local-first operation — local installations use the user's own machine and network connection.
 
 ## Quick Start
 
 ```bash
-brew install yt-dlp ffmpeg    # or apt install ffmpeg && pip install yt-dlp
-git clone https://github.com/averygan/reclip.git
+git clone https://github.com/yagyaanshK/reclip.git
 cd reclip
 ./reclip.sh
 ```
@@ -62,16 +62,22 @@ docker build -t reclip . && docker run -p 8899:8899 reclip
 
 ## Supported Sites
 
-Anything [yt-dlp supports](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), including:
+ReClip follows [yt-dlp's current extractor support](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), including:
 
 YouTube, TikTok, Instagram, Twitter/X, Reddit, Facebook, Vimeo, Twitch, Dailymotion, SoundCloud, Loom, Streamable, Pinterest, Tumblr, Threads, LinkedIn, and many more.
 
 ## Stack
 
-- **Backend:** Python + Flask (~150 lines)
+- **Backend:** Python + Flask
 - **Frontend:** Vanilla HTML/CSS/JS (single file, no build step)
 - **Download engine:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) + [ffmpeg](https://ffmpeg.org/)
-- **Dependencies:** `flask`, `yt-dlp`, `yt-dlp-ejs`, `pycryptodomex`
+- **Dependencies:** `flask`, `yt-dlp`, `yt-dlp-ejs`, `pycryptodomex`, `curl_cffi`
+
+## Agent Documentation
+
+- [`llms.txt`](https://daddy23-reclip.hf.space/llms.txt) provides a concise capability and limitation summary.
+- [`llms-full.txt`](https://daddy23-reclip.hf.space/llms-full.txt) provides detailed usage, reliability, and security guidance.
+- Automated crawlers must not invoke the download API. The hosted interface is intended for explicit, user-directed downloads.
 
 ## Disclaimer
 

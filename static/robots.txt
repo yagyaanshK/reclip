@@ -1,34 +1,23 @@
-# ReClip - Public deployment on Hugging Face Spaces
+# ReClip public website crawler policy
+# Search and user-directed retrieval are allowed. Automated API calls are not.
 
-# Block AI training crawlers
+# OpenAI training crawler
 User-agent: GPTBot
 Disallow: /
 
-User-agent: ChatGPT-User
-Disallow: /
-
-User-agent: OAI-SearchBot
-Disallow: /
-
+# Anthropic training crawler
 User-agent: ClaudeBot
 Disallow: /
 
-User-agent: Claude-Web
-Disallow: /
-
-User-agent: anthropic-ai
-Disallow: /
-
+# Google model-training control
 User-agent: Google-Extended
 Disallow: /
 
+# Common Crawl and other model-training crawlers
 User-agent: CCBot
 Disallow: /
 
 User-agent: Bytespider
-Disallow: /
-
-User-agent: PerplexityBot
 Disallow: /
 
 User-agent: Applebot-Extended
@@ -37,13 +26,27 @@ Disallow: /
 User-agent: Meta-ExternalAgent
 Disallow: /
 
-User-agent: FacebookBot
-Disallow: /
-
-User-agent: cohere-ai
-Disallow: /
-
-# Allow all other crawlers (search engines)
-User-agent: *
-Disallow: /api/
+# OpenAI search indexing and user-requested browsing
+User-agent: OAI-SearchBot
 Allow: /
+Disallow: /api/
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /api/
+
+# Anthropic search indexing and user-requested browsing
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /api/
+
+User-agent: Claude-User
+Allow: /
+Disallow: /api/
+
+# Search engines and other crawlers may read public documentation only.
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://daddy23-reclip.hf.space/sitemap.xml

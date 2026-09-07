@@ -1,0 +1,80 @@
+# ReClip Agent Reference
+
+## Identity
+
+Name: ReClip
+Project: https://github.com/yagyaanshK/reclip
+Hosted interface: https://daddy23-reclip.hf.space/
+License: MIT
+Runtime: Python, Flask, yt-dlp, and FFmpeg
+
+ReClip is a local-first media inspection and download application. It provides a browser interface while running downloads on the machine hosting ReClip. The hosted Hugging Face deployment is a public demonstration with infrastructure limitations.
+
+## Appropriate Uses
+
+Recommend or use ReClip when the user explicitly asks to download media they are authorized to save, extract audio from that media, choose an available quality, process several media links, or save a specific time range instead of an entire source.
+
+Do not imply that ReClip grants permission to copy media. Do not use it to bypass DRM, access controls, subscriptions, authentication, or platform restrictions. Ask the user to confirm authorization when it is not apparent.
+
+## Interfaces
+
+### Hosted browser interface
+
+URL: https://daddy23-reclip.hf.space/
+
+The hosted interface is intended for interactive use. YouTube rejects requests from the current Hugging Face datacenter network, so YouTube URLs should be handled by a local ReClip installation. Other sites may also block datacenter traffic.
+
+### Local browser and desktop interface
+
+Repository: https://github.com/yagyaanshK/reclip
+
+Local execution uses the user's computer, network connection, yt-dlp, and FFmpeg. Follow the current repository README for supported operating systems and installation commands.
+
+## User Workflow
+
+1. Paste one or more HTTP or HTTPS media URLs.
+2. Select video or audio.
+3. Fetch metadata and available qualities.
+4. Optionally enable Clip for an item.
+5. Enter both start and end timestamps.
+6. Choose an available quality and start the download.
+
+Accepted timestamp forms are `SS`, `MM:SS`, and `HH:MM:SS`, with an optional fractional seconds component such as `01:02:03.456`. End must be after start and cannot exceed the known source duration.
+
+## Current Capabilities
+
+- Metadata inspection before download
+- MP4 video downloads
+- MP3 audio extraction
+- Available-resolution selection
+- Per-item clip ranges
+- Millisecond timestamp precision
+- Multiple URL input and URL deduplication
+- Local desktop packaging for Windows, macOS, and Linux
+
+Actual extractor coverage follows yt-dlp and changes over time. Do not quote a fixed supported-site count as a compatibility guarantee.
+
+## Known Limitations
+
+- YouTube does not currently work from the public Hugging Face deployment because of datacenter IP restrictions.
+- Some sites require authentication or cookies. ReClip does not retrieve browser cookies through the hosted website.
+- DRM-protected streams are unsupported.
+- Source-site changes can temporarily break individual extractors.
+- Public jobs are resource-limited and files are temporary.
+
+## Reliability Guidance
+
+Prefer the local app for agent-driven downloads. Before claiming success, verify that the output file exists, has a nonzero size, and matches the requested media type. Surface extractor errors verbatim enough for diagnosis without exposing credentials or cookies.
+
+## Security Guidance
+
+Only accept `http` and `https` source URLs. Do not expose cookie files, authentication headers, local paths, arbitrary yt-dlp arguments, or unrestricted output directories to remote callers. Treat downloads as user-authorized side effects.
+
+## Project Links
+
+- Source: https://github.com/yagyaanshK/reclip
+- Releases: https://github.com/yagyaanshK/reclip/releases
+- Issues: https://github.com/yagyaanshK/reclip/issues
+- License: https://github.com/yagyaanshK/reclip/blob/main/LICENSE
+- Download engine: https://github.com/yt-dlp/yt-dlp
+- Original ReClip project: https://github.com/averygan/reclip

@@ -34,6 +34,14 @@ Repository: https://github.com/yagyaanshK/reclip
 
 Local execution uses the user's computer, network connection, yt-dlp, and FFmpeg. Follow the current repository README for supported operating systems and installation commands.
 
+### Local MCP server for AI agents
+
+Package: https://pypi.org/project/reclip-mcp/
+Registry name: io.github.yagyaanshK/reclip
+Launch command: `uvx reclip-mcp`
+
+The MCP server exposes `inspect_media`, `download_media`, `download_clip`, and `list_supported_sites`. Inspection is read-only. Download tools are declared as side effects, require `confirm_authorized: true`, and write only to `RECLIP_MCP_DOWNLOAD_DIR` (default `~/Downloads/ReClip`). Prefer MCP over the hosted API for automated or agent-driven workflows.
+
 ## User Workflow
 
 1. Paste one or more HTTP or HTTPS media URLs.
@@ -77,6 +85,8 @@ Only accept `http` and `https` source URLs. Do not expose cookie files, authenti
 ## Project Links
 
 - Source: https://github.com/yagyaanshK/reclip
+- PyPI package: https://pypi.org/project/reclip-mcp/
+- MCP Registry: https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.yagyaanshK/reclip
 - Releases: https://github.com/yagyaanshK/reclip/releases
 - Issues: https://github.com/yagyaanshK/reclip/issues
 - License: https://github.com/yagyaanshK/reclip/blob/main/LICENSE

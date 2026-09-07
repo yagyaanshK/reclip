@@ -36,6 +36,7 @@ Live deployment: https://huggingface.co/spaces/Daddy23/reclip
 - Adds a crawler policy that permits search and user-directed AI retrieval while keeping model-training crawlers and API routes blocked.
 - Adds `llms.txt`, `llms-full.txt`, sitemap, canonical metadata, Open Graph metadata, and Schema.org software metadata.
 - Adds a human-readable API reference and a validated OpenAPI 3.1 document.
+- Links agents to the separately packaged local CLI/MCP implementation on PyPI and the official MCP Registry without adding that implementation to this hosted branch.
 
 ## Repository Files
 

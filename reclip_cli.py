@@ -11,7 +11,7 @@ def _add_output_mode(parser):
 
 def build_parser():
     parser = argparse.ArgumentParser(prog="reclip", description="Inspect and download permitted media locally")
-    parser.add_argument("--version", action="version", version="ReClip CLI 0.1.1")
+    parser.add_argument("--version", action="version", version="ReClip CLI 0.1.2")
     commands = parser.add_subparsers(dest="command", required=True)
 
     inspect_parser = commands.add_parser("inspect", help="Inspect metadata and available formats")

@@ -6,6 +6,7 @@ A self-hosted, open-source video and audio downloader with a clean web UI. Paste
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![PyPI](https://img.shields.io/pypi/v/reclip-mcp)](https://pypi.org/project/reclip-mcp/)
 
 https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
 
@@ -74,7 +75,13 @@ docker build -t reclip . && docker run -p 8899:8899 reclip
 
 ## Command-Line Interface
 
-ReClip also exposes a structured local CLI for shell scripts and AI agents. Install the project in a Python 3.10+ environment, then run:
+ReClip also exposes a structured local CLI for shell scripts and AI agents. Install it in a Python 3.10+ environment with `uv`:
+
+```bash
+uv tool install reclip-mcp
+```
+
+Then run:
 
 ```bash
 reclip inspect "https://example.com/media" --json
@@ -87,22 +94,14 @@ All JSON responses contain an `ok` field. Failures include a stable machine-read
 
 ## AI Agent Integration (MCP)
 
-Install the local MCP server and CLI from a checkout:
-
-```bash
-python -m pip install .
-```
-
-After the first package release, agents can launch it without cloning the repository using `uvx reclip-mcp`.
-
-Configure an MCP host to start ReClip over stdio. Use absolute paths because desktop hosts start servers from their own working directory:
+Configure an MCP host to install and start ReClip over stdio without cloning the repository:
 
 ```json
 {
   "mcpServers": {
     "reclip": {
-      "command": "/absolute/path/to/python",
-      "args": ["-m", "reclip_mcp"],
+      "command": "uvx",
+      "args": ["reclip-mcp"],
       "env": {
         "RECLIP_MCP_DOWNLOAD_DIR": "/absolute/path/to/downloads"
       }
@@ -111,7 +110,12 @@ Configure an MCP host to start ReClip over stdio. Use absolute paths because des
 }
 ```
 
-The server exposes `inspect_media`, `download_media`, `download_clip`, and `list_supported_sites`. Download tools require explicit user authorization and can write only to `RECLIP_MCP_DOWNLOAD_DIR`, which defaults to `~/Downloads/ReClip`.
+Use the absolute path to `uvx` if the MCP host does not inherit your shell `PATH`. The server exposes `inspect_media`, `download_media`, `download_clip`, and `list_supported_sites`. Download tools require explicit user authorization and can write only to `RECLIP_MCP_DOWNLOAD_DIR`, which defaults to `~/Downloads/ReClip`.
+
+- [PyPI package](https://pypi.org/project/reclip-mcp/)
+- [Official MCP Registry record](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.yagyaanshK/reclip)
+
+For development from a checkout, run `python -m pip install .` and configure the host to execute `python -m reclip_mcp`.
 
 ## Supported Sites
 

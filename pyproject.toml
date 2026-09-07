@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reclip-mcp"
+version = "0.1.0"
+description = "Local-first CLI and MCP tools for inspecting and downloading permitted media"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{name = "ReClip contributors"}]
+keywords = ["yt-dlp", "media-downloader", "video-clipping", "mcp-server"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+  "imageio-ffmpeg",
+  "mcp>=2,<3",
+  "yt-dlp>=2026.8.19",
+]
+
+[project.optional-dependencies]
+app = ["flask", "pywebview", "yt-dlp-ejs", "pycryptodomex"]
+dev = ["build"]
+
+[project.urls]
+Homepage = "https://github.com/yagyaanshK/reclip"
+Issues = "https://github.com/yagyaanshK/reclip/issues"
+Repository = "https://github.com/yagyaanshK/reclip.git"
+
+[project.scripts]
+reclip = "reclip_cli:main"
+reclip-mcp = "reclip_mcp:main"
+
+[tool.setuptools]
+py-modules = ["reclip_cli", "reclip_core", "reclip_mcp"]

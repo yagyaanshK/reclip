@@ -3,11 +3,17 @@ import sys
 import uuid
 import glob
 import json
-import math
 import shutil
 import subprocess
 import threading
 from flask import Flask, request, jsonify, send_file, render_template
+
+from reclip_core import (
+    build_download_command as _core_build_download_command,
+    format_filename_time as _format_filename_time,
+    parse_clip_time as _parse_clip_time,
+    validate_clip_range as _validate_clip_range,
+)
 
 if len(sys.argv) > 1 and sys.argv[1] == '--yt-dlp-worker':
     import yt_dlp
@@ -23,77 +29,6 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 jobs = {}
 
 
-def _parse_clip_time(value):
-    """Parse SS, MM:SS, or HH:MM:SS timestamps with optional decimals."""
-    if value is None:
-        raise ValueError("Clip start and end times are required")
-
-    text = str(value).strip()
-    if not text:
-        raise ValueError("Clip start and end times are required")
-
-    parts = text.split(":")
-    if len(parts) > 3 or any(not part for part in parts):
-        raise ValueError("Use SS, MM:SS, or HH:MM:SS")
-
-    if any(not part.replace(".", "", 1).isdigit() for part in parts):
-        raise ValueError("Use SS, MM:SS, or HH:MM:SS")
-    numbers = [float(part) for part in parts]
-
-    if any(not math.isfinite(number) or number < 0 for number in numbers):
-        raise ValueError("Clip times cannot be negative")
-    if len(parts) >= 2 and numbers[-1] >= 60:
-        raise ValueError("Seconds must be less than 60")
-    if len(parts) == 3 and numbers[-2] >= 60:
-        raise ValueError("Minutes must be less than 60")
-
-    total = 0.0
-    for number in numbers:
-        total = total * 60 + number
-    return total
-
-
-def _validate_clip_range(start_value, end_value, duration=None):
-    """Return validated clip bounds in seconds, or (None, None) when unused."""
-    start_missing = start_value is None or str(start_value).strip() == ""
-    end_missing = end_value is None or str(end_value).strip() == ""
-    if start_missing and end_missing:
-        return None, None
-    if start_missing or end_missing:
-        raise ValueError("Enter both clip start and end times")
-
-    start = _parse_clip_time(start_value)
-    end = _parse_clip_time(end_value)
-    if end <= start:
-        raise ValueError("Clip end must be after clip start")
-
-    if duration not in (None, ""):
-        try:
-            source_duration = float(duration)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("Invalid source duration") from exc
-        if not math.isfinite(source_duration):
-            raise ValueError("Invalid source duration")
-        if source_duration > 0 and end > source_duration + 0.001:
-            raise ValueError("Clip end is beyond the source duration")
-
-    return start, end
-
-
-def _format_section_time(seconds):
-    return f"{seconds:.3f}".rstrip("0").rstrip(".")
-
-
-def _format_filename_time(seconds):
-    total_milliseconds = round(seconds * 1000)
-    total_seconds, milliseconds = divmod(total_milliseconds, 1000)
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, whole_seconds = divmod(remainder, 60)
-    if hours:
-        return f"{hours:02d}-{minutes:02d}-{whole_seconds:02d}.{milliseconds:03d}"
-    return f"{minutes:02d}-{whole_seconds:02d}.{milliseconds:03d}"
-
-
 def _build_download_command(
     out_template,
     url,
@@ -104,26 +39,17 @@ def _build_download_command(
     clip_start=None,
     clip_end=None,
 ):
-    cmd = YT_DLP_CMD + ["--no-playlist", "-o", out_template]
-
-    if format_choice == "audio":
-        if format_id:
-            cmd += ["-f", format_id]
-        if audio_codec == "best":
-            cmd += ["-x"]
-        else:
-            cmd += ["-x", "--audio-format", audio_codec]
-    elif format_id:
-        cmd += ["-f", f"{format_id}+bestaudio/best", "--merge-output-format", video_codec]
-    else:
-        cmd += ["-f", "bestvideo+bestaudio/best", "--merge-output-format", video_codec]
-
-    if clip_start is not None and clip_end is not None:
-        section = f"*{_format_section_time(clip_start)}-{_format_section_time(clip_end)}"
-        cmd += ["--download-sections", section, "--force-keyframes-at-cuts"]
-
-    cmd.append(url)
-    return cmd
+    return _core_build_download_command(
+        out_template,
+        url,
+        format_choice,
+        format_id,
+        audio_codec,
+        video_codec,
+        clip_start,
+        clip_end,
+        base_command=YT_DLP_CMD,
+    )
 
 
 @app.after_request

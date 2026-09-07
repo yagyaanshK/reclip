@@ -1,0 +1,82 @@
+name: Publish ReClip CLI and MCP
+
+on:
+  push:
+    tags:
+      - "mcp-v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install build and test dependencies
+        run: python -m pip install --upgrade build .
+      - name: Verify release versions
+        run: |
+          VERSION="${GITHUB_REF_NAME#mcp-v}"
+          python - "$VERSION" <<'PY'
+          import json
+          import sys
+          import tomllib
+
+          expected = sys.argv[1]
+          with open("pyproject.toml", "rb") as handle:
+              package_version = tomllib.load(handle)["project"]["version"]
+          with open("server.json", encoding="utf-8") as handle:
+              server = json.load(handle)
+          versions = {package_version, server["version"], server["packages"][0]["version"]}
+          if versions != {expected}:
+              raise SystemExit(f"Tag version {expected!r} does not match metadata versions {versions!r}")
+          PY
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+      - name: Build distributions
+        run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/
+
+  publish-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-mcp-registry:
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install MCP publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+      - name: Wait for PyPI metadata propagation
+        run: |
+          VERSION="${GITHUB_REF_NAME#mcp-v}"
+          for attempt in {1..12}; do
+            curl --fail --silent "https://pypi.org/pypi/reclip-mcp/${VERSION}/json" >/dev/null && exit 0
+            sleep 10
+          done
+          exit 1
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish server.json

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.yagyaanshK/reclip",
+  "title": "ReClip",
+  "description": "Inspect and download authorized media or precise clips locally with yt-dlp.",
+  "websiteUrl": "https://github.com/yagyaanshK/reclip",
+  "repository": {
+    "url": "https://github.com/yagyaanshK/reclip",
+    "source": "github",
+    "id": "1198361359"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "reclip-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "RECLIP_MCP_DOWNLOAD_DIR",
+          "description": "Absolute directory where agent-requested downloads are saved.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "RECLIP_MCP_MAX_CLIP_SECONDS",
+          "description": "Maximum permitted clip duration in seconds. Defaults to 14400.",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

@@ -16,6 +16,7 @@ release_assets/
 icons/
 *.spec
 *.zip
+*.egg-info/
 PENDING_TASKS.md
 METADATA_FINDINGS.md
 

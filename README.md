@@ -1,8 +1,10 @@
 # ReClip
 
+<!-- mcp-name: io.github.yagyaanshK/reclip -->
+
 A self-hosted, open-source video and audio downloader with a clean web UI. Paste links from YouTube, TikTok, Instagram, Twitter/X, and 1000+ other sites — download as MP4 or MP3.
 
-![Python](https://img.shields.io/badge/python-3.8+-blue)
+![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
@@ -18,10 +20,9 @@ https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
 - Bulk downloads — paste multiple URLs at once
 - Automatic URL deduplication
 - Clean, responsive UI — no frameworks, no build step
-- Single Python file backend (~150 lines)
 - Native Desktop Apps — zero-install standalone executables for Windows, macOS, and Linux.
 - Intelligent Filename Generation — extracts and formats metadata gracefully (`Artist - Track.mp3` or `Channel - Title.mp4`).
-- Anti-Bot Bypassing — utilizes `yt-dlp-ejs` and `pycryptodomex` to natively solve JavaScript challenges (e.g., YouTube's "Sign in to confirm you're not a bot").
+- Local-first operation — downloads run on the user's own machine and network connection.
 - Automated Build Pipeline — GitHub Actions automatically compiles and publishes new executables upon every version tag push.
 
 ## 🚀 Download ReClip App
@@ -71,6 +72,47 @@ docker build -t reclip . && docker run -p 8899:8899 reclip
 5. Optionally enable **Clip** and enter start/end times as `SS`, `MM:SS`, or `HH:MM:SS.000`
 6. Click **Download** on individual videos, or **Download All**
 
+## Command-Line Interface
+
+ReClip also exposes a structured local CLI for shell scripts and AI agents. Install the project in a Python 3.10+ environment, then run:
+
+```bash
+reclip inspect "https://example.com/media" --json
+reclip download "https://example.com/media" --format mp4 --quality 1080p --output downloads --json
+reclip clip "https://example.com/media" --start 01:20:15.500 --end 01:25:00 --format mp3 --output downloads --json
+reclip sites --json
+```
+
+All JSON responses contain an `ok` field. Failures include a stable machine-readable error `code` and a human-readable `message`. Downloads occur locally and return the absolute output path, filename, byte size, format, source URL, and clip range.
+
+## AI Agent Integration (MCP)
+
+Install the local MCP server and CLI from a checkout:
+
+```bash
+python -m pip install .
+```
+
+After the first package release, agents can launch it without cloning the repository using `uvx reclip-mcp`.
+
+Configure an MCP host to start ReClip over stdio. Use absolute paths because desktop hosts start servers from their own working directory:
+
+```json
+{
+  "mcpServers": {
+    "reclip": {
+      "command": "/absolute/path/to/python",
+      "args": ["-m", "reclip_mcp"],
+      "env": {
+        "RECLIP_MCP_DOWNLOAD_DIR": "/absolute/path/to/downloads"
+      }
+    }
+  }
+}
+```
+
+The server exposes `inspect_media`, `download_media`, `download_clip`, and `list_supported_sites`. Download tools require explicit user authorization and can write only to `RECLIP_MCP_DOWNLOAD_DIR`, which defaults to `~/Downloads/ReClip`.
+
 ## Supported Sites
 
 Anything [yt-dlp supports](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), including:
@@ -79,7 +121,7 @@ YouTube, TikTok, Instagram, Twitter/X, Reddit, Facebook, Vimeo, Twitch, Dailymot
 
 ## Stack
 
-- **Backend:** Python + Flask (~150 lines)
+- **Backend:** Python + Flask
 - **Frontend:** Vanilla HTML/CSS/JS (single file, no build step)
 - **Download engine:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) + [ffmpeg](https://ffmpeg.org/)
 - **Dependencies:** `flask`, `yt-dlp`, `yt-dlp-ejs`, `pycryptodomex`, `pywebview`, `pyinstaller`, `imageio-ffmpeg`

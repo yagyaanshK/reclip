@@ -82,9 +82,16 @@ class ClipDownloadApiTests(unittest.TestCase):
     def setUp(self):
         reclip.app.config.update(TESTING=True)
         self.client = reclip.app.test_client()
+        self.dns = patch("app.socket.getaddrinfo")
+        self.getaddrinfo = self.dns.start()
+        self.getaddrinfo.return_value = [
+            (reclip.socket.AF_INET, reclip.socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+        ]
 
     def tearDown(self):
+        self.dns.stop()
         reclip.jobs.clear()
+        reclip.rate_events.clear()
 
     @patch("app.threading.Thread")
     def test_api_passes_validated_clip_to_background_job(self, thread_cls):
@@ -120,6 +127,88 @@ class ClipDownloadApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("after clip start", response.get_json()["error"])
         thread_cls.assert_not_called()
+
+    @patch("app.threading.Thread")
+    def test_api_rejects_private_and_non_http_urls(self, thread_cls):
+        for url in ("file:///tmp/video", "http://127.0.0.1/video", "https://localhost/video"):
+            with self.subTest(url=url):
+                response = self.client.post("/api/download", json={"url": url})
+                self.assertEqual(response.status_code, 400)
+        thread_cls.assert_not_called()
+
+    @patch("app.socket.getaddrinfo")
+    @patch("app.threading.Thread")
+    def test_api_rejects_hostname_resolving_to_private_network(self, thread_cls, getaddrinfo):
+        getaddrinfo.return_value = [
+            (reclip.socket.AF_INET, reclip.socket.SOCK_STREAM, 6, "", ("10.0.0.5", 443))
+        ]
+
+        response = self.client.post(
+            "/api/download",
+            json={"url": "https://internal.example/video"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Local network", response.get_json()["error"])
+        thread_cls.assert_not_called()
+
+    @patch("app.threading.Thread")
+    def test_api_limits_active_jobs_per_client(self, thread_cls):
+        for number in range(reclip.MAX_ACTIVE_JOBS_PER_CLIENT):
+            response = self.client.post(
+                "/api/download",
+                json={"url": f"https://example.com/video-{number}"},
+            )
+            self.assertEqual(response.status_code, 200)
+
+        response = self.client.post(
+            "/api/download",
+            json={"url": "https://example.com/one-too-many"},
+        )
+        self.assertEqual(response.status_code, 429)
+        self.assertIn("current downloads", response.get_json()["error"])
+
+    def test_job_status_is_bound_to_originating_client(self):
+        reclip.jobs["owned-job"] = {
+            "status": "done",
+            "client_id": "203.0.113.10",
+            "created_at": reclip.time.time(),
+            "filename": "example.mp4",
+        }
+
+        owned = self.client.get(
+            "/api/status/owned-job",
+            headers={"X-Forwarded-For": "203.0.113.10"},
+        )
+        other = self.client.get(
+            "/api/status/owned-job",
+            headers={"X-Forwarded-For": "203.0.113.11"},
+        )
+
+        self.assertEqual(owned.status_code, 200)
+        self.assertEqual(other.status_code, 404)
+
+
+class HostedDocumentationTests(unittest.TestCase):
+    def setUp(self):
+        reclip.app.config.update(TESTING=True)
+        self.client = reclip.app.test_client()
+
+    def test_machine_readable_docs_are_served(self):
+        for path in ("/openapi.json", "/llms.txt", "/llms-full.txt", "/sitemap.xml"):
+            with self.subTest(path=path):
+                with self.client.get(path) as response:
+                    self.assertEqual(response.status_code, 200)
+
+        with self.client.get("/openapi.json") as response:
+            spec = response.get_json()
+        self.assertEqual(spec["openapi"], "3.1.0")
+        self.assertIn("/api/download", spec["paths"])
+
+    def test_api_docs_page_references_openapi_document(self):
+        response = self.client.get("/api-docs")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'/openapi.json', response.data)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,9 @@ Live deployment: https://huggingface.co/spaces/Daddy23/reclip
 - Uses the container's managed DNS configuration instead of replacing `/etc/resolv.conf`.
 - Uses bounded IPv4 network retries and socket timeouts so blocked upstream requests fail clearly instead of hanging indefinitely.
 - Keeps backend audio trimming disabled on the hosted instance; `/trim` performs trimming in the browser with `ffmpeg.wasm`.
+- Adds per-client request limits, per-client and global download concurrency limits, maximum download size enforcement, and temporary job cleanup.
+- Rejects non-HTTP URLs, credential-bearing URLs, local-network addresses, and hostnames resolving to local networks.
+- Restricts job status, file retrieval, and recent-download metadata to the client that created each job.
 
 ## Download Features
 
@@ -30,7 +33,9 @@ Live deployment: https://huggingface.co/spaces/Daddy23/reclip
 - Adds automatic light/dark mode controls and hosted responsive fixes.
 - Adds the browser-based `/trim` audio editor with waveform, duration, loading, and AAC fixes.
 - Adds the cross-origin isolation headers required by `ffmpeg.wasm`.
-- Adds `robots.txt` and `llms.txt` routes and hosted-only static files.
+- Adds a crawler policy that permits search and user-directed AI retrieval while keeping model-training crawlers and API routes blocked.
+- Adds `llms.txt`, `llms-full.txt`, sitemap, canonical metadata, Open Graph metadata, and Schema.org software metadata.
+- Adds a human-readable API reference and a validated OpenAPI 3.1 document.
 
 ## Repository Files
 
@@ -40,6 +45,10 @@ Live deployment: https://huggingface.co/spaces/Daddy23/reclip
 - `templates/trim.html`: client-side audio trimming interface.
 - `static/robots.txt`: crawler policy for the hosted site.
 - `static/llms.txt`: concise public description for AI agents and search tools.
+- `static/llms-full.txt`: detailed capabilities, limitations, safety guidance, and agent-selection context.
+- `static/openapi.json`: machine-readable hosted API contract.
+- `static/sitemap.xml`: public discovery index.
+- `templates/api-docs.html`: hosted API reference rendered from the OpenAPI contract.
 - `.gitignore`: excludes local credentials, deployment notes, downloads, and build output.
 - `tests/test_clip_download.py`: clip parsing, validation, command, and API coverage.
 

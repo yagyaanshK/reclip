@@ -5,9 +5,16 @@ import glob
 import json
 import math
 import re
+import ipaddress
+import socket
 import subprocess
 import threading
+import time
+from collections import defaultdict, deque
+from functools import wraps
+from urllib.parse import urlparse
 from flask import Flask, request, jsonify, send_file, render_template
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 YT_DLP_CMD = [
     sys.executable,
@@ -32,11 +39,118 @@ YT_DLP_CMD = [
 ]
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("RECLIP_MAX_REQUEST_BYTES", 16 * 1024 * 1024))
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 jobs = {}
+jobs_lock = threading.Lock()
+rate_events = defaultdict(deque)
+rate_lock = threading.Lock()
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+JOB_TTL_SECONDS = int(os.environ.get("RECLIP_JOB_TTL_SECONDS", "3600"))
+MAX_ACTIVE_JOBS = int(os.environ.get("RECLIP_MAX_ACTIVE_JOBS", "4"))
+MAX_ACTIVE_JOBS_PER_CLIENT = int(os.environ.get("RECLIP_MAX_ACTIVE_JOBS_PER_CLIENT", "2"))
+MAX_DOWNLOAD_SIZE = os.environ.get("RECLIP_MAX_DOWNLOAD_SIZE", "1G")
+
+
+def _client_id():
+    return request.remote_addr or "unknown"
+
+
+def _validate_public_url(value):
+    text = str(value or "").strip()
+    parsed = urlparse(text)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("Source must be an HTTP or HTTPS URL")
+    if parsed.username or parsed.password:
+        raise ValueError("Source URLs cannot contain credentials")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("Source URL contains an invalid port") from exc
+    hostname = parsed.hostname.lower().rstrip(".")
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        raise ValueError("Local network URLs are not supported")
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        try:
+            addresses = {
+                ipaddress.ip_address(item[4][0])
+                for item in socket.getaddrinfo(
+                    hostname,
+                    port or (443 if parsed.scheme == "https" else 80),
+                    type=socket.SOCK_STREAM,
+                )
+            }
+        except socket.gaierror as exc:
+            raise ValueError("Source hostname could not be resolved") from exc
+    else:
+        addresses = {address}
+    if any(not address.is_global for address in addresses):
+        raise ValueError("Local network URLs are not supported")
+    return text
+
+
+def _rate_limited(limit, window_seconds):
+    def decorator(function):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            now = time.monotonic()
+            key = (_client_id(), request.endpoint)
+            with rate_lock:
+                events = rate_events[key]
+                while events and events[0] <= now - window_seconds:
+                    events.popleft()
+                if len(events) >= limit:
+                    retry_after = max(1, math.ceil(events[0] + window_seconds - now))
+                    response = jsonify({"error": "Rate limit exceeded", "retry_after": retry_after})
+                    response.status_code = 429
+                    response.headers["Retry-After"] = str(retry_after)
+                    return response
+                events.append(now)
+            return function(*args, **kwargs)
+
+        return wrapped
+    return decorator
+
+
+def _delete_job_files(job_id, job):
+    paths = set(glob.glob(os.path.join(DOWNLOAD_DIR, f"{job_id}.*")))
+    if job.get("file"):
+        paths.add(job["file"])
+    for path in paths:
+        try:
+            if os.path.isfile(path):
+                os.remove(path)
+        except OSError:
+            pass
+
+
+def _cleanup_expired_jobs():
+    now = time.time()
+    expired = []
+    with jobs_lock:
+        for job_id, job in list(jobs.items()):
+            if now - job.get("created_at", now) > JOB_TTL_SECONDS:
+                expired.append((job_id, jobs.pop(job_id)))
+    for job_id, job in expired:
+        _delete_job_files(job_id, job)
+
+    with rate_lock:
+        for key, events in list(rate_events.items()):
+            if not events or events[-1] <= time.monotonic() - 3600:
+                rate_events.pop(key, None)
+
+
+@app.before_request
+def maintain_public_service():
+    _cleanup_expired_jobs()
+    if request.path in {"/api/info", "/api/download"} and request.content_length:
+        if request.content_length > 16 * 1024:
+            return jsonify({"error": "JSON request is too large"}), 413
 
 
 def _yt_dlp_error_message(output, fallback="yt-dlp failed"):
@@ -152,7 +266,13 @@ def _build_download_command(
     clip_start=None,
     clip_end=None,
 ):
-    cmd = YT_DLP_CMD + ["--no-playlist", "-o", out_template]
+    cmd = YT_DLP_CMD + [
+        "--no-playlist",
+        "--max-filesize",
+        MAX_DOWNLOAD_SIZE,
+        "-o",
+        out_template,
+    ]
 
     if format_choice == "audio":
         if format_id:
@@ -303,12 +423,24 @@ def sitemap():
     return send_file(os.path.join(app.static_folder, "sitemap.xml"), mimetype="application/xml")
 
 
+@app.route("/openapi.json")
+def openapi_spec():
+    return send_file(os.path.join(app.static_folder, "openapi.json"), mimetype="application/json")
+
+
+@app.route("/api-docs")
+def api_docs():
+    return render_template("api-docs.html")
+
+
 @app.route("/api/info", methods=["POST"])
+@_rate_limited(limit=20, window_seconds=300)
 def get_info():
-    data = request.json
-    url = data.get("url", "").strip()
-    if not url:
-        return jsonify({"error": "No URL provided"}), 400
+    data = request.get_json(silent=True) or {}
+    try:
+        url = _validate_public_url(data.get("url"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     cmd = YT_DLP_CMD + ["--no-playlist", "-j", url]
     try:
@@ -376,9 +508,13 @@ def get_info():
 
 
 @app.route("/api/download", methods=["POST"])
+@_rate_limited(limit=6, window_seconds=3600)
 def start_download():
-    data = request.json
-    url = data.get("url", "").strip()
+    data = request.get_json(silent=True) or {}
+    try:
+        url = _validate_public_url(data.get("url"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     format_choice = data.get("format", "video")
     format_id = data.get("format_id")
     audio_codec = data.get("audio_codec", "mp3")
@@ -388,8 +524,12 @@ def start_download():
     track = data.get("track", "")
     uploader = data.get("uploader", "")
 
-    if not url:
-        return jsonify({"error": "No URL provided"}), 400
+    if format_choice not in {"video", "audio"}:
+        return jsonify({"error": "Format must be video or audio"}), 400
+    if audio_codec not in {"mp3", "m4a", "flac", "wav", "best"}:
+        return jsonify({"error": "Unsupported audio codec"}), 400
+    if video_codec not in {"mp4", "mkv", "webm"}:
+        return jsonify({"error": "Unsupported video codec"}), 400
 
     try:
         clip_start, clip_end = _validate_clip_range(
@@ -400,20 +540,31 @@ def start_download():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    job_id = uuid.uuid4().hex[:10]
-    jobs[job_id] = {
-        "status": "downloading", 
-        "url": url, 
-        "title": title,
-        "artist": artist,
-        "track": track,
-        "uploader": uploader,
-        "format_choice": format_choice,
-        "audio_codec": audio_codec,
-        "video_codec": video_codec,
-        "clip_start": clip_start,
-        "clip_end": clip_end,
-    }
+    client_id = _client_id()
+    with jobs_lock:
+        active_jobs = [job for job in jobs.values() if job.get("status") == "downloading"]
+        client_jobs = [job for job in active_jobs if job.get("client_id") == client_id]
+        if len(active_jobs) >= MAX_ACTIVE_JOBS:
+            return jsonify({"error": "The public service is busy; try again later"}), 503
+        if len(client_jobs) >= MAX_ACTIVE_JOBS_PER_CLIENT:
+            return jsonify({"error": "Wait for your current downloads to finish"}), 429
+
+        job_id = uuid.uuid4().hex[:20]
+        jobs[job_id] = {
+            "status": "downloading",
+            "url": url,
+            "title": str(title)[:300],
+            "artist": str(artist)[:200],
+            "track": str(track)[:300],
+            "uploader": str(uploader)[:200],
+            "format_choice": format_choice,
+            "audio_codec": audio_codec,
+            "video_codec": video_codec,
+            "clip_start": clip_start,
+            "clip_end": clip_end,
+            "client_id": client_id,
+            "created_at": time.time(),
+        }
 
     thread = threading.Thread(
         target=run_download,
@@ -435,9 +586,10 @@ def start_download():
 
 
 @app.route("/api/status/<job_id>")
+@_rate_limited(limit=120, window_seconds=300)
 def check_status(job_id):
     job = jobs.get(job_id)
-    if not job:
+    if not job or job.get("client_id") != _client_id():
         return jsonify({"error": "Job not found"}), 404
     return jsonify({
         "status": job["status"],
@@ -448,9 +600,10 @@ def check_status(job_id):
 
 @app.route("/api/file/<job_id>")
 @app.route("/api/file/<job_id>/<path:filename>")
+@_rate_limited(limit=20, window_seconds=3600)
 def download_file(job_id, filename=None):
     job = jobs.get(job_id)
-    if not job or job["status"] != "done":
+    if not job or job.get("client_id") != _client_id() or job["status"] != "done":
         return jsonify({"error": "File not ready"}), 404
     return send_file(job["file"], as_attachment=True, download_name=job["filename"])
 
@@ -473,7 +626,11 @@ def recent_downloads():
     """Audio downloads completed in this session, surfaced on the trim page."""
     audio = []
     for jid, job in jobs.items():
-        if job.get("status") == "done" and job.get("format_choice") == "audio":
+        if (
+            job.get("status") == "done"
+            and job.get("format_choice") == "audio"
+            and job.get("client_id") == _client_id()
+        ):
             audio.append({
                 "id": jid,
                 "filename": job.get("filename", ""),

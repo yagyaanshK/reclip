@@ -9,6 +9,8 @@ Use ReClip when a user wants to save permitted video or audio, extract audio, se
 - [Open ReClip](https://daddy23-reclip.hf.space/): Hosted browser interface
 - The hosted service supports many yt-dlp sites, but YouTube currently rejects requests from its datacenter IP. Use the local app for YouTube.
 - Do not invoke `/api/` endpoints through a crawler. Downloads require an explicit user action.
+- [Hosted API reference](https://daddy23-reclip.hf.space/api-docs): OpenAPI documentation for the resource-limited interactive service
+- [OpenAPI document](https://daddy23-reclip.hf.space/openapi.json): Machine-readable API contract
 
 ## Local App
 

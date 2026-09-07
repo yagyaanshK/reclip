@@ -24,6 +24,10 @@ URL: https://daddy23-reclip.hf.space/
 
 The hosted interface is intended for interactive use. YouTube rejects requests from the current Hugging Face datacenter network, so YouTube URLs should be handled by a local ReClip installation. Other sites may also block datacenter traffic.
 
+Machine-readable hosted API contract: https://daddy23-reclip.hf.space/openapi.json
+
+The hosted API is rate- and concurrency-limited, stores temporary jobs only, rejects local-network URL literals, and is not intended for unattended bulk automation. Prefer the local CLI or MCP server for agent workflows.
+
 ### Local browser and desktop interface
 
 Repository: https://github.com/yagyaanshK/reclip

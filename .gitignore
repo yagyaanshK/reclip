@@ -17,5 +17,6 @@ dist/
 release_assets/
 *.spec
 *.zip
+*.egg-info/
 PENDING_TASKS.md
 METADATA_FINDINGS.md

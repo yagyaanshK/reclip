@@ -77,6 +77,7 @@ YouTube, TikTok, Instagram, Twitter/X, Reddit, Facebook, Vimeo, Twitch, Dailymot
 
 - [`llms.txt`](https://daddy23-reclip.hf.space/llms.txt) provides a concise capability and limitation summary.
 - [`llms-full.txt`](https://daddy23-reclip.hf.space/llms-full.txt) provides detailed usage, reliability, and security guidance.
+- [Hosted API reference](https://daddy23-reclip.hf.space/api-docs) and [`openapi.json`](https://daddy23-reclip.hf.space/openapi.json) document the resource-limited web API.
 - Automated crawlers must not invoke the download API. The hosted interface is intended for explicit, user-directed downloads.
 
 ## Disclaimer

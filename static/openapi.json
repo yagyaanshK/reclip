@@ -1,0 +1,130 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ReClip Hosted API",
+    "version": "0.1.0",
+    "description": "A resource-limited API for ReClip's interactive public website. YouTube is unavailable from the current Hugging Face datacenter. Prefer the local ReClip CLI or MCP server for agent workflows. Users are responsible for authorization and source-platform terms.",
+    "license": {"name": "MIT", "identifier": "MIT"}
+  },
+  "servers": [{"url": "https://daddy23-reclip.hf.space"}],
+  "paths": {
+    "/api/info": {
+      "post": {
+        "operationId": "inspectHostedMedia",
+        "summary": "Inspect a public media URL",
+        "description": "Returns normalized metadata and available formats. Limited to 20 requests per five minutes per client.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["url"],
+                "properties": {"url": {"type": "string", "format": "uri", "pattern": "^https?://"}}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Media metadata", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MediaInfo"}}}},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "429": {"$ref": "#/components/responses/RateLimited"}
+        }
+      }
+    },
+    "/api/download": {
+      "post": {
+        "operationId": "startHostedDownload",
+        "summary": "Start an interactive download job",
+        "description": "Starts a temporary download. Limited to six starts per hour, two active jobs per client, four active jobs globally, and the configured maximum file size. Do not use this endpoint for unattended bulk automation.",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DownloadRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "Job accepted", "content": {"application/json": {"schema": {"type": "object", "required": ["job_id"], "properties": {"job_id": {"type": "string"}}}}}},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "429": {"$ref": "#/components/responses/RateLimited"},
+          "503": {"description": "Public service is at its concurrency limit"}
+        }
+      }
+    },
+    "/api/status/{job_id}": {
+      "get": {
+        "operationId": "getHostedDownloadStatus",
+        "summary": "Check an owned temporary job",
+        "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {"description": "Current job state", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/JobStatus"}}}},
+          "404": {"description": "Job not found, expired, or owned by another client"},
+          "429": {"$ref": "#/components/responses/RateLimited"}
+        }
+      }
+    },
+    "/api/file/{job_id}": {
+      "get": {
+        "operationId": "getHostedDownloadFile",
+        "summary": "Retrieve a completed owned job file",
+        "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {"description": "Downloaded media file", "content": {"application/octet-stream": {"schema": {"type": "string", "contentEncoding": "binary"}}}},
+          "404": {"description": "File is unavailable, expired, or owned by another client"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MediaInfo": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string"},
+          "thumbnail": {"type": "string"},
+          "duration": {"type": ["number", "null"]},
+          "uploader": {"type": "string"},
+          "artist": {"type": "string"},
+          "track": {"type": "string"},
+          "formats": {"type": "array", "items": {"$ref": "#/components/schemas/Format"}},
+          "audioFormats": {"type": "array", "items": {"$ref": "#/components/schemas/Format"}}
+        }
+      },
+      "Format": {
+        "type": "object",
+        "required": ["id", "label"],
+        "properties": {"id": {"type": "string"}, "label": {"type": "string"}}
+      },
+      "DownloadRequest": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {"type": "string", "format": "uri", "pattern": "^https?://"},
+          "format": {"type": "string", "enum": ["video", "audio"], "default": "video"},
+          "format_id": {"type": ["string", "null"]},
+          "video_codec": {"type": "string", "enum": ["mp4", "mkv", "webm"], "default": "mp4"},
+          "audio_codec": {"type": "string", "enum": ["mp3", "m4a", "flac", "wav", "best"], "default": "mp3"},
+          "clip_start": {"type": ["string", "null"], "description": "SS, MM:SS, or HH:MM:SS.000"},
+          "clip_end": {"type": ["string", "null"], "description": "SS, MM:SS, or HH:MM:SS.000"},
+          "duration": {"type": ["number", "null"]}
+        }
+      },
+      "JobStatus": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {"type": "string", "enum": ["downloading", "done", "error"]},
+          "error": {"type": ["string", "null"]},
+          "filename": {"type": ["string", "null"]}
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {"error": {"type": "string"}, "retry_after": {"type": "integer"}}
+      }
+    },
+    "responses": {
+      "BadRequest": {"description": "Invalid request or extractor error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "RateLimited": {"description": "Request rate exceeded", "headers": {"Retry-After": {"schema": {"type": "integer"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+    }
+  }
+}

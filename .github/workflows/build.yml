@@ -10,6 +10,9 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      actions: read
     strategy:
       matrix:
         include:
@@ -45,6 +48,20 @@ jobs:
     - name: Generate app icons
       run: python make_icons.py
 
+    - name: Generate Windows version resource
+      if: matrix.os == 'windows-latest'
+      shell: bash
+      run: |
+        if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          VERSION="${GITHUB_REF_NAME}"
+        else
+          VERSION="0.0.0.0"
+        fi
+        python make_version_info.py "$VERSION" version_info.txt
+        PRODUCT_VERSION=$(grep -o "ProductVersion', '[0-9.]*'" version_info.txt | grep -o '[0-9.]*')
+        echo "PRODUCT_VERSION=$PRODUCT_VERSION" >> "$GITHUB_ENV"
+        echo "Embedding product version $PRODUCT_VERSION"
+
     - name: Build Executable with PyInstaller (Windows)
       if: matrix.os == 'windows-latest'
       run: >
@@ -54,6 +71,7 @@ jobs:
         --hidden-import=yt_dlp_ejs
         --collect-all yt_dlp_ejs
         --icon "icons/app.ico"
+        --version-file "version_info.txt"
         --name "ReClip"
         app.py
 
@@ -87,6 +105,48 @@ jobs:
         npm install -g create-dmg
         create-dmg dist/ReClip.app dist || true
         mv dist/ReClip*.dmg dist/ReClip-macos.dmg || true
+
+    # ── Windows code signing via SignPath Foundation ────────────────────────
+    # Runs only for version tags, and only once the repository variables
+    # SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG and SIGNPATH_SIGNING_POLICY_SLUG
+    # plus the secret SIGNPATH_API_TOKEN exist. Until SignPath approves the
+    # project these are unset and the unsigned build is published as before.
+    - name: Upload unsigned Windows executable for signing
+      id: upload-unsigned-exe
+      if: matrix.os == 'windows-latest' && startsWith(github.ref, 'refs/tags/v') && vars.SIGNPATH_ORGANIZATION_ID != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: ReClip-windows-unsigned
+        path: dist/ReClip.exe
+        if-no-files-found: error
+
+    - name: Submit SignPath signing request
+      id: signpath
+      if: steps.upload-unsigned-exe.outcome == 'success'
+      continue-on-error: true
+      uses: signpath/github-action-submit-signing-request@v3
+      with:
+        api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+        organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+        project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+        signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+        github-artifact-id: ${{ steps.upload-unsigned-exe.outputs.artifact-id }}
+        parameters: |
+          productVersion: "${{ env.PRODUCT_VERSION }}"
+        wait-for-completion: true
+        wait-for-completion-timeout-in-seconds: 3600
+        output-artifact-directory: signed
+
+    - name: Use signed executable when available
+      if: steps.upload-unsigned-exe.outcome == 'success'
+      shell: bash
+      run: |
+        if [ "${{ steps.signpath.outcome }}" == "success" ] && [ -f signed/ReClip.exe ]; then
+          cp -f signed/ReClip.exe dist/ReClip.exe
+          echo "::notice title=Code signing::ReClip.exe was signed by SignPath Foundation (request ${{ steps.signpath.outputs.signing-request-web-url }})."
+        else
+          echo "::warning title=Code signing skipped::SignPath signing failed, timed out, or was not approved. Publishing the UNSIGNED ReClip.exe. Approve or fix the request and re-run this workflow to publish a signed build."
+        fi
 
     - name: Prepare Action Artifacts
       shell: bash

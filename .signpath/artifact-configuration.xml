@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration for ReClip.exe.
+
+  The GitHub Actions workflow uploads dist/ReClip.exe with actions/upload-artifact,
+  which wraps it in a ZIP. SignPath receives that ZIP, verifies the embedded
+  product metadata (set by make_version_info.py), Authenticode-signs the
+  executable, and returns the ZIP with the signed file.
+
+  Paste this file into the SignPath project as the artifact configuration
+  (Project > Artifact configurations > Add). Keep it in sync with the workflow.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <!-- Passed from the workflow as the four-part version derived from the git tag,
+         for example 1.6.5.0 for tag v1.6.5. -->
+    <parameter name="productVersion" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="ReClip.exe"
+             product-name="ReClip"
+             product-version="${productVersion}"
+             company-name="ReClip"
+             original-filename="ReClip.exe">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

@@ -36,6 +36,23 @@ You don't need to install Python or use the terminal. Download the pre-built sta
 
 *Note: The native apps contain a bundled server and PyWebView browser. Simply open the app and it will launch right in its own native window!*
 
+## 🔏 Code Signing Policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+Windows releases of `ReClip.exe` are built on GitHub Actions and Authenticode-signed with a SignPath Foundation certificate. The publisher shown by Windows is **SignPath Foundation**. Signing runs only for tagged releases; the full pipeline lives in [`.github/workflows/build.yml`](.github/workflows/build.yml) and the artifact configuration in [`.signpath/artifact-configuration.xml`](.signpath/artifact-configuration.xml).
+
+**Team roles**
+
+| Role | Member |
+|------|--------|
+| Committers and reviewers | [@yagyaanshK](https://github.com/yagyaanshK) |
+| Approvers | [@yagyaanshK](https://github.com/yagyaanshK) |
+
+**Privacy policy**
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. ReClip only contacts the media sites you paste URLs for, and the desktop app runs entirely on your own computer.
+
 ## 🛠️ Run from Source (Terminal)
 
 ```bash

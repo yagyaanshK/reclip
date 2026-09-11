@@ -6,7 +6,7 @@ pip install -r requirements.txt
 
 echo "Building ReClip app..."
 # Note the use of ':' instead of ';' for path separation in unix
-pyinstaller --noconfirm --onedir --windowed --add-data "templates:templates" --add-data "static:static" --name "ReClip" app.py
+pyinstaller --noconfirm --onedir --windowed --add-data "templates:templates" --copy-metadata yt-dlp --copy-metadata yt-dlp-ejs --add-data "static:static" --name "ReClip" app.py
 
 echo ""
 echo "Build complete! You can find the ReClip executable inside the 'dist/ReClip' folder."

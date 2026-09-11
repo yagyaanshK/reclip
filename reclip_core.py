@@ -3,6 +3,7 @@ import ipaddress
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import uuid
@@ -154,6 +155,54 @@ def extractor_error(output, fallback="yt-dlp failed"):
         if line.startswith("ERROR:"):
             return line.removeprefix("ERROR:").strip()
     return lines[-1] if lines else fallback
+
+
+# Ordered (code, friendly message, likely caused by an outdated yt-dlp) rules.
+# The first rule whose pattern matches the raw yt-dlp error wins.
+_ERROR_RULES = (
+    ("unsupported_url", r"Unsupported URL", "This link is not supported.", False),
+    ("private", r"Private video|This video is private", "This video is private.", False),
+    ("age_restricted", r"Sign in to confirm your age|age[- ]restricted",
+     "This video is age-restricted and needs a signed-in account.", False),
+    ("js_runtime_missing", r"No supported JavaScript runtime|JavaScript runtime|js runtime",
+     "YouTube needs a JavaScript runtime. Install Deno (deno.land) or Node.js and restart ReClip.", False),
+    ("bot_check", r"Sign in to confirm|not a bot|cookies",
+     "The platform is asking for a sign-in check. This usually means the downloader needs an update.", True),
+    ("platform_denied", r"HTTP Error 403|Forbidden",
+     "The platform refused the download (HTTP 403). This usually happens when the downloader is out of date.", True),
+    ("player_changed",
+     r"nsig|n challenge|Signature extraction failed|Unable to extract|Requested format is not available"
+     r"|Precondition check failed|Failed to parse JSON|Unable to download API page",
+     "The platform changed its player and the downloader could not keep up.", True),
+    ("not_found", r"HTTP Error 404|Video not found", "Video not found (HTTP 404).", False),
+    ("rate_limited", r"HTTP Error 429|Too Many Requests|rate.?limit",
+     "The platform is rate-limiting you. Wait a few minutes and try again.", False),
+    ("copyright", r"copyright", "Blocked for copyright reasons.", False),
+    ("geo_blocked", r"geo|not available in your country|not made this video available in your country",
+     "Not available in your region.", False),
+    ("live", r"is a live event|live event will begin|live stream",
+     "Live streams are not supported until the stream ends.", False),
+    ("unavailable", r"Video unavailable|This video is not available|has been removed|no longer available",
+     "This video is unavailable or was removed.", False),
+    ("timeout", r"timed out|Timed out|Read timed out", "Request timed out. Try again.", False),
+    ("network", r"Unable to download webpage|getaddrinfo|Network is unreachable|Connection reset"
+     r"|urlopen error|Temporary failure in name resolution|Name or service not known",
+     "Network error. Check your connection.", False),
+)
+
+
+def describe_error(raw, fallback="Download failed"):
+    """Map a raw yt-dlp error line to a user-facing message.
+
+    Returns ``{"code", "message", "detail", "maybe_outdated"}`` where
+    ``maybe_outdated`` marks failures that a newer yt-dlp typically fixes.
+    """
+    detail = str(raw or "").strip() or fallback
+    for code, pattern, message, maybe_outdated in _ERROR_RULES:
+        if re.search(pattern, detail, re.IGNORECASE):
+            return {"code": code, "message": message, "detail": detail, "maybe_outdated": maybe_outdated}
+    short = detail if len(detail) <= 120 else detail[:117] + "..."
+    return {"code": "unknown", "message": short, "detail": detail, "maybe_outdated": False}
 
 
 def _run(command, timeout):

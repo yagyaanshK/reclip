@@ -36,6 +36,10 @@ You don't need to install Python or use the terminal. Download the pre-built sta
 
 *Note: The native apps contain a bundled server and PyWebView browser. Simply open the app and it will launch right in its own native window!*
 
+**Keeps itself working when YouTube changes.** The app ships with a copy of [yt-dlp](https://github.com/yt-dlp/yt-dlp) but does not depend on it staying current: once a day, and whenever a download fails in a way a newer yt-dlp usually fixes (HTTP 403, "sign in to confirm", player changes), ReClip fetches the latest yt-dlp from PyPI into your user profile, verifies its checksum, and retries. You can also click **Check for updates** at the bottom of the window. Nothing else is downloaded or sent anywhere.
+
+**YouTube needs a JavaScript runtime.** yt-dlp solves YouTube's player challenges with [Deno](https://deno.land) (recommended) or Node.js. Install one and restart ReClip if you see "YouTube needs a JavaScript runtime".
+
 ## 🔏 Code Signing Policy
 
 Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
@@ -51,7 +55,7 @@ Windows releases of `ReClip.exe` are built on GitHub Actions and Authenticode-si
 
 **Privacy policy**
 
-This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. ReClip only contacts the media sites you paste URLs for, and the desktop app runs entirely on your own computer.
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. The only automatic network access is a daily check of [pypi.org](https://pypi.org/project/yt-dlp/) for a newer yt-dlp release (see "Keeps itself working when YouTube changes" above); the request carries no user data. ReClip only contacts the media sites you paste URLs for, and the desktop app runs entirely on your own computer.
 
 ## 🛠️ Run from Source (Terminal)
 

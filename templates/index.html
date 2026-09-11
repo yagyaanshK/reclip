@@ -459,6 +459,22 @@
       line-height: 1.8;
     }
 
+    .downloader-line {
+      margin-top: 14px;
+      text-transform: none;
+      letter-spacing: 0.02em;
+    }
+    .downloader-line button {
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .downloader-line button:disabled { opacity: 0.5; cursor: wait; }
+
     .tools-link {
       margin-top: 40px;
       text-align: center;
@@ -568,10 +584,44 @@
       YouTube &middot; TikTok &middot; Instagram &middot; Twitter/X &middot; Reddit &middot; Facebook<br>
       Vimeo &middot; Twitch &middot; Dailymotion &middot; SoundCloud &middot; Loom &middot; Streamable<br>
       Pinterest &middot; Tumblr &middot; Threads &middot; LinkedIn &middot; 1000+ more
+      <div class="downloader-line" id="downloader-line" hidden>
+        Downloader: yt-dlp <span id="ytdlp-version">…</span>
+        &middot; <button type="button" id="ytdlp-update-btn" onclick="updateDownloader()">Check for updates</button>
+        <span id="ytdlp-update-msg"></span>
+      </div>
     </div>
   </div>
 
   <script>
+    // yt-dlp runtime updater (desktop app only; hidden when the server says it's disabled)
+    async function loadDownloaderStatus() {
+      try {
+        const res = await fetch('/api/ytdlp');
+        const info = await res.json();
+        if (!info.enabled) return;
+        document.getElementById('ytdlp-version').textContent = info.version || 'unknown';
+        document.getElementById('downloader-line').hidden = false;
+      } catch { /* hosted or offline: keep hidden */ }
+    }
+
+    async function updateDownloader() {
+      const btn = document.getElementById('ytdlp-update-btn');
+      const msg = document.getElementById('ytdlp-update-msg');
+      btn.disabled = true;
+      msg.textContent = 'Checking…';
+      try {
+        const res = await fetch('/api/ytdlp/update', { method: 'POST' });
+        const data = await res.json();
+        if (data.version) document.getElementById('ytdlp-version').textContent = data.version;
+        msg.textContent = data.message || data.error || 'Update check failed.';
+      } catch {
+        msg.textContent = 'Update check failed. Are you online?';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    loadDownloaderStatus();
+
     const themeToggle = document.getElementById('theme-toggle');
     const moonIcon = document.getElementById('moon-icon');
     const sunIcon = document.getElementById('sun-icon');
@@ -673,6 +723,13 @@
       return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    function errorText(c, fallback) {
+      // The server already classified the failure (see reclip_core.describe_error);
+      // only fall back to string sniffing for legacy/unstructured errors.
+      if (c.errorCode) return c.error || fallback;
+      return friendlyError(c.error || fallback);
+    }
+
     function friendlyError(err) {
       if (err.includes('Unsupported URL')) return 'This URL is not supported';
       if (err.includes('Video unavailable')) return 'Video is unavailable or private';
@@ -715,7 +772,7 @@
           });
           const data = await res.json();
           if (data.error) {
-            cardData[idx] = { ...cardData[idx], status: 'info-error', error: data.error };
+            cardData[idx] = { ...cardData[idx], status: 'info-error', error: data.error, errorCode: data.code, errorDetail: data.detail };
           } else {
             cardData[idx] = {
               ...cardData[idx],
@@ -784,7 +841,7 @@
           </div>
           <div class="card-body">
             <div class="card-title" style="color:var(--error)">Could not fetch video</div>
-            <div class="card-error-msg">${esc(friendlyError(c.error || ''))}</div>
+            <div class="card-error-msg" title="${escAttr(c.errorDetail || '')}">${esc(errorText(c, ''))}</div>
             <div class="card-error-url">${esc(c.url)}</div>
           </div>
         `;
@@ -829,7 +886,7 @@
           <span class="card-status done">${esc(c.filename || '')}</span>`;
       } else if (c.status === 'error') {
         actionHtml = `<button class="card-dl-btn" onclick="dlCard(${idx})">${c.clipEnabled ? 'Retry clip' : 'Retry'}</button>
-          <span class="card-status error">${esc(friendlyError(c.error || 'Download failed'))}</span>`;
+          <span class="card-status error" title="${escAttr(c.errorDetail || '')}">${esc(errorText(c, 'Download failed'))}</span>`;
       }
 
       let clipHtml = '';
@@ -918,6 +975,8 @@
 
       c.status = 'downloading';
       c.error = null;
+      c.errorCode = null;
+      c.errorDetail = null;
       c.clipError = '';
       renderCard(idx);
 
@@ -953,6 +1012,8 @@
         if (data.error) {
           c.status = 'error';
           c.error = data.error;
+          c.errorCode = data.code || null;
+          c.errorDetail = data.detail || null;
           renderCard(idx);
           return;
         }
@@ -981,6 +1042,8 @@
             clearInterval(iv);
             c.status = 'error';
             c.error = data.error;
+            c.errorCode = data.code || null;
+            c.errorDetail = data.detail || null;
             renderCard(idx);
           }
         } catch {

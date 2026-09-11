@@ -1,5 +1,15 @@
 import os
 import sys
+
+if len(sys.argv) > 1 and sys.argv[1] == '--yt-dlp-worker':
+    # Runs yt-dlp inside the frozen executable. Kept above the heavy imports so
+    # every download does not pay for Flask start-up. ytdlp_runtime swaps in a
+    # newer yt-dlp downloaded at runtime when one is installed.
+    import ytdlp_runtime
+    ytdlp_runtime.activate()
+    import yt_dlp
+    sys.exit(yt_dlp.main(sys.argv[2:]))
+
 import uuid
 import glob
 import json
@@ -8,19 +18,20 @@ import subprocess
 import threading
 from flask import Flask, request, jsonify, send_file, render_template
 
+import ytdlp_runtime
 from reclip_core import (
     build_download_command as _core_build_download_command,
+    describe_error as _describe_error,
     format_filename_time as _format_filename_time,
     parse_clip_time as _parse_clip_time,
     validate_clip_range as _validate_clip_range,
 )
 
-if len(sys.argv) > 1 and sys.argv[1] == '--yt-dlp-worker':
-    import yt_dlp
-    sys.exit(yt_dlp.main(sys.argv[2:]))
-
 import imageio_ffmpeg
-YT_DLP_CMD = [sys.executable, "--yt-dlp-worker"] if getattr(sys, 'frozen', False) else [sys.executable, "-m", "yt_dlp"]
+if getattr(sys, 'frozen', False):
+    YT_DLP_CMD = [sys.executable, "--yt-dlp-worker"]
+else:
+    YT_DLP_CMD = [sys.executable, os.path.abspath(__file__), "--yt-dlp-worker"]
 YT_DLP_CMD.extend(["--ffmpeg-location", imageio_ffmpeg.get_ffmpeg_exe()])
 app = Flask(__name__)
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "downloads")
@@ -50,6 +61,54 @@ def _build_download_command(
         clip_end,
         base_command=YT_DLP_CMD,
     )
+
+
+def _last_stderr_line(result):
+    lines = [line.strip() for line in (result.stderr or "").splitlines() if line.strip()]
+    for line in reversed(lines):
+        if line.startswith("ERROR:"):
+            return line
+    return lines[-1] if lines else ""
+
+
+def _run_ytdlp(cmd, timeout):
+    """Run yt-dlp; on a failure that smells like a stale extractor, update it and retry once.
+
+    Returns ``(result, error)``; ``error`` is ``None`` on success, otherwise a dict
+    with ``message``, ``code``, ``detail`` and ``ytdlp`` (the version in use).
+    """
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if result.returncode == 0:
+        return result, None
+
+    error = _describe_error(_last_stderr_line(result))
+    hint = ""
+    if error["maybe_outdated"] and ytdlp_runtime.enabled():
+        outcome = ytdlp_runtime.ensure_latest(min_interval=ytdlp_runtime.FAILURE_CHECK_INTERVAL)
+        if outcome.get("updated"):
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            if result.returncode == 0:
+                return result, None
+            error = _describe_error(_last_stderr_line(result))
+            hint = (
+                f" ReClip updated its downloader to yt-dlp {outcome['version']} and retried,"
+                " but the platform still refused. Try again later."
+            )
+        elif outcome.get("error"):
+            hint = " ReClip could not check for a downloader update. Are you online?"
+        elif outcome.get("skipped") == "recently-checked":
+            hint = " The downloader was checked for updates recently. Try again in a few minutes."
+        else:
+            hint = (
+                f" Your downloader (yt-dlp {outcome.get('version') or 'unknown'}) is already the newest"
+                " release. The platform may have changed again; try later or update ReClip."
+            )
+    return result, {
+        "message": error["message"] + hint,
+        "code": error["code"],
+        "detail": error["detail"],
+        "ytdlp": ytdlp_runtime.effective_version(),
+    }
 
 
 @app.after_request
@@ -87,10 +146,13 @@ def run_download(
     )
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        if result.returncode != 0:
+        result, error = _run_ytdlp(cmd, timeout=300)
+        if error:
             job["status"] = "error"
-            job["error"] = result.stderr.strip().split("\n")[-1]
+            job["error"] = error["message"]
+            job["error_code"] = error["code"]
+            job["error_detail"] = error["detail"]
+            job["ytdlp"] = error["ytdlp"]
             return
 
         files = glob.glob(os.path.join(DOWNLOAD_DIR, f"{job_id}.*"))
@@ -168,9 +230,10 @@ def get_info():
 
     cmd = YT_DLP_CMD + ["--no-playlist", "-j", url]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        if result.returncode != 0:
-            return jsonify({"error": result.stderr.strip().split("\n")[-1]}), 400
+        result, error = _run_ytdlp(cmd, timeout=60)
+        if error:
+            return jsonify({"error": error["message"], "code": error["code"],
+                            "detail": error["detail"], "ytdlp": error["ytdlp"]}), 400
 
         info = json.loads(result.stdout)
 
@@ -296,8 +359,34 @@ def check_status(job_id):
     return jsonify({
         "status": job["status"],
         "error": job.get("error"),
+        "code": job.get("error_code"),
+        "detail": job.get("error_detail"),
+        "ytdlp": job.get("ytdlp"),
         "filename": job.get("filename"),
     })
+
+
+@app.route("/api/ytdlp")
+def ytdlp_status():
+    return jsonify(ytdlp_runtime.status())
+
+
+@app.route("/api/ytdlp/update", methods=["POST"])
+def ytdlp_update():
+    """Manual 'check for downloader updates' from the UI."""
+    if not ytdlp_runtime.enabled():
+        return jsonify({"updated": False, "version": ytdlp_runtime.effective_version(),
+                        "message": "Runtime updates only apply to the packaged desktop app."})
+    try:
+        outcome = ytdlp_runtime.update()
+    except Exception as exc:
+        return jsonify({"updated": False, "version": ytdlp_runtime.effective_version(),
+                        "error": str(exc)}), 502
+    if outcome["updated"]:
+        message = f"Downloader updated to yt-dlp {outcome['version']}."
+    else:
+        message = f"yt-dlp {outcome['version']} is already the newest release."
+    return jsonify({**outcome, "message": message})
 
 
 @app.route("/api/file/<job_id>")
@@ -462,6 +551,8 @@ def trim_audio():
 
 if __name__ == "__main__":
     import webview
+    # Keep the frozen yt-dlp fresh: a throttled daily check that never blocks start-up.
+    threading.Thread(target=ytdlp_runtime.ensure_latest, daemon=True).start()
     # Create a native OS window rendering the Flask app
     webview.create_window("ReClip", app, width=1000, height=750)
     webview.start()

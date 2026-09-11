@@ -70,6 +70,8 @@ jobs:
         --add-data "static${{ matrix.separator }}static"
         --hidden-import=yt_dlp_ejs
         --collect-all yt_dlp_ejs
+        --copy-metadata yt-dlp
+        --copy-metadata yt-dlp-ejs
         --icon "icons/app.ico"
         --version-file "version_info.txt"
         --name "ReClip"
@@ -83,6 +85,8 @@ jobs:
         --add-data "static${{ matrix.separator }}static"
         --hidden-import=yt_dlp_ejs
         --collect-all yt_dlp_ejs
+        --copy-metadata yt-dlp
+        --copy-metadata yt-dlp-ejs
         --icon "icons/app.icns"
         --name "ReClip"
         app.py
@@ -95,6 +99,8 @@ jobs:
         --add-data "static${{ matrix.separator }}static"
         --hidden-import=yt_dlp_ejs
         --collect-all yt_dlp_ejs
+        --copy-metadata yt-dlp
+        --copy-metadata yt-dlp-ejs
         --icon "icons/app.png"
         --name "ReClip"
         app.py

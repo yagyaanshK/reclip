@@ -192,6 +192,9 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         name: ReClip ${{ github.ref_name }}
+        # Desktop releases own the "latest" slot so releases/latest/download/* links keep
+        # working. Create CLI/MCP (mcp-v*) releases with `gh release create --latest=false`.
+        make_latest: true
         body: |
           Standalone release for Windows, Mac, and Linux. No terminal or Python required!
 
